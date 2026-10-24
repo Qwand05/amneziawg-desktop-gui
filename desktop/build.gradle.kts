@@ -14,7 +14,7 @@ plugins {
  * Version of the desktop GUI. It is independent of the Android app and of
  * AmneziaWG itself, and is used for the .deb package and the Settings screen.
  */
-val appVersion = "1.0.3"
+val appVersion = "1.1"
 version = appVersion
 
 // Makes the version available at runtime as a classpath resource.
@@ -73,7 +73,9 @@ compose.desktop {
             //    (tray icon, single instance) with UnixSystem.
             //  - jdk.unsupported: sun.misc.Unsafe, used by libraries at runtime.
             //  - java.instrument: referenced by a dependency; cheap to include.
-            modules("java.instrument", "jdk.security.auth", "jdk.unsupported")
+            //  - jdk.localedata: number formats of the translated languages
+            //    (e.g. "1,50" in Russian); not found by suggestRuntimeModules.
+            modules("java.instrument", "jdk.localedata", "jdk.security.auth", "jdk.unsupported")
 
             linux {
                 // The GUI talks to awg-quick through a polkit helper, so it

@@ -23,7 +23,10 @@ import org.amnezia.awg.desktop.theme.toHex
 import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.AppPaths
 import org.amnezia.awg.desktop.util.ErrorMessages
+import org.amnezia.awg.desktop.util.I18n
+import org.amnezia.awg.desktop.util.Language
 import org.amnezia.awg.desktop.util.Prefs
+import org.amnezia.awg.desktop.util.Strings
 
 /** Navigation destinations, mirroring the Android activities and fragments. */
 sealed class Screen {
@@ -51,6 +54,23 @@ class AppState {
     val tunnelManager = TunnelManager(FileConfigStore(AppPaths.configDir), backend, prefs) {
         AppLog.e("TunnelManager", ErrorMessages[it], it)
         showSnackbar(ErrorMessages[it])
+    }
+
+    /** Selected interface language; null follows the system language. */
+    var language: Language? by mutableStateOf(
+        prefs.getString(Prefs.KEY_LANGUAGE, null)?.let { tag -> I18n.languages.firstOrNull { it.tag == tag } }
+    )
+        private set
+
+    init {
+        // Before any window or tray text is created.
+        Strings.setLanguage(language)
+    }
+
+    fun updateLanguage(value: Language?) {
+        language = value
+        Strings.setLanguage(value)
+        prefs.putString(Prefs.KEY_LANGUAGE, value?.tag)
     }
 
     var darkTheme: Boolean by mutableStateOf(prefs.getBoolean(Prefs.KEY_DARK_THEME, false))

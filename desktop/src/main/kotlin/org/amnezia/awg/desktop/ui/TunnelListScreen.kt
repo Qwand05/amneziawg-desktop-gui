@@ -97,7 +97,7 @@ fun AppState.toggleTunnel(tunnel: ObservableTunnel, checked: Boolean) {
         } catch (e: Throwable) {
             val error = ErrorMessages[e]
             AppLog.e("Tunnels", "Switching ${tunnel.name} ${if (checked) "on" else "off"} failed: $error")
-            showSnackbar((if (checked) Strings.ERROR_UP else Strings.ERROR_DOWN).format(error))
+            showSnackbar((if (checked) Strings.errorUp(error) else Strings.errorDown(error)))
         }
     }
 }
@@ -155,7 +155,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (selecting) Strings.deleteTitle(selection.size).format(selection.size) else Strings.APP_NAME) },
+                title = { Text(if (selecting) Strings.deleteTitle(selection.size) else Strings.APP_NAME) },
                 navigationIcon = {
                     if (selecting) TooltipIconButton(Icons.Default.Close, Strings.CANCEL) { selection.clear() }
                 },
@@ -342,9 +342,9 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                     try {
                         val tunnel = manager.create(name, config)
                         pendingConfig = null
-                        app.showSnackbar(Strings.IMPORT_SUCCESS.format(tunnel.name))
+                        app.showSnackbar(Strings.importSuccess(tunnel.name))
                     } catch (e: Throwable) {
-                        app.showSnackbar(Strings.IMPORT_ERROR.format(ErrorMessages[e]))
+                        app.showSnackbar(Strings.importError(ErrorMessages[e]))
                     }
                 }
             },
@@ -485,7 +485,7 @@ fun AppState.deleteTunnels(targets: List<ObservableTunnel>) {
             }
         }
         showSnackbar(
-            if (failures.isEmpty()) Strings.deleteSuccess(targets.size).format(targets.size)
+            if (failures.isEmpty()) Strings.deleteSuccess(targets.size)
             else Strings.deleteError(failures.size, ErrorMessages[failures.first()])
         )
     }

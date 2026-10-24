@@ -21,6 +21,7 @@ import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.AmneziaContent
 import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.util.AppPaths
+import org.amnezia.awg.desktop.util.I18n
 import org.jetbrains.skia.EncodedImageFormat
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,6 +46,9 @@ class ScreensRenderTest {
 
         val app = onEdt { AppState().also { it.start() } }
         waitUntil { onEdt { app.tunnelManager.loaded } }
+        // Screenshots must not depend on the machine's locale.
+        fun language(tag: String) = I18n.languages.first { it.tag == tag }
+        onEdt { app.updateLanguage(language("en")) }
         val out = File("build/screens").apply { mkdirs() }
 
         fun shot(
@@ -101,12 +105,20 @@ class ScreensRenderTest {
         onEdt { app.updateThemeColors(ThemeColors(accent = Color(0xFF1E88E5), status = Color(0xFFEF6C00))) }
         shot("settings-custom-colors")
         onEdt { app.updateThemeColors(ThemeColors()) }
+        // A few translations, including plurals and a CJK script.
+        for (tag in listOf("ru", "de", "pt-BR", "ja")) {
+            onEdt { app.updateLanguage(language(tag)); app.popBackStack(); app.popBackStack() }
+            shot("lang-$tag-list", clicks = listOf(Click(Offset(316f, 676f))))
+            onEdt { app.navigate(Screen.Settings) }
+            shot("lang-$tag-settings")
+        }
+        onEdt { app.updateLanguage(language("en")); app.popBackStack() }
         onEdt { app.navigate(Screen.LogViewer) }
         shot("log-app")
         // Second tab of the tab row under the 64dp top bar.
         shot("log-system", clicks = listOf(Click(Offset(720f, 88f))))
 
-        onEdt { app.close() }
+        onEdt { app.updateLanguage(null); app.close() }
         assertTrue(File(out, "settings.png").length() > 0)
     }
 

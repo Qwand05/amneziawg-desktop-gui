@@ -93,7 +93,7 @@ fun LogViewerScreen(app: AppState) {
             target.writeText(content.joinToString("\n", postfix = "\n") { it.second })
             app.showSnackbar(Strings.logExportSuccess(target.absolutePath))
         } catch (e: Throwable) {
-            app.showSnackbar(Strings.LOG_EXPORT_ERROR.format(ErrorMessages[e]))
+            app.showSnackbar(Strings.logExportError(ErrorMessages[e]))
         }
     }
 

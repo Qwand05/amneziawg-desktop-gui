@@ -193,7 +193,8 @@ private fun PeerCard(tunnel: ObservableTunnel, peer: Peer, onCopied: (String) ->
             )
         }
         if (stats != null && stats.latestHandshakeEpochMillis != 0L) {
-            LabeledValue(Strings.LATEST_HANDSHAKE, Strings.latestHandshakeAgo(QuantityFormatter.formatEpochAgo(stats.latestHandshakeEpochMillis)))
+            val ago = QuantityFormatter.formatEpochAgo(stats.latestHandshakeEpochMillis)
+            LabeledValue(Strings.LATEST_HANDSHAKE, if (ago == Strings.NOW) ago else Strings.latestHandshakeAgo(ago))
         }
     }
 }

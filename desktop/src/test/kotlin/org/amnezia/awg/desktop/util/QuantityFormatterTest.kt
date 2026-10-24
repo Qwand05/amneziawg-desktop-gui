@@ -6,13 +6,11 @@ package org.amnezia.awg.desktop.util
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.util.Locale
 
 class QuantityFormatterTest {
     @Test
     fun formatsEveryUnit() {
-        val default = Locale.getDefault()
-        Locale.setDefault(Locale.US)
+        Strings.setLanguage(I18n.languages.first { it.tag == "en" })
         try {
             assertEquals("1023 B", QuantityFormatter.formatBytes(1023))
             assertEquals("1.50 KiB", QuantityFormatter.formatBytes(1536))
@@ -20,7 +18,7 @@ class QuantityFormatterTest {
             assertEquals("3.25 GiB", QuantityFormatter.formatBytes(3L * 1024 * 1024 * 1024 + 256L * 1024 * 1024))
             assertEquals("1.00 TiB", QuantityFormatter.formatBytes(1024L * 1024 * 1024 * 1024))
         } finally {
-            Locale.setDefault(default)
+            Strings.setLanguage(I18n.languages.first())
         }
     }
 }

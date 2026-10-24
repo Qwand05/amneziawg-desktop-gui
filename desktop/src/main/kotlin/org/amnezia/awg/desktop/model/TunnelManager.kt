@@ -25,6 +25,7 @@ import org.amnezia.awg.desktop.configStore.ConfigStore
 import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.Prefs
 import org.amnezia.awg.desktop.util.QuantityFormatter
+import org.amnezia.awg.desktop.util.Strings
 
 /**
  * Maintains and mediates changes to the set of available AmneziaWG tunnels.
@@ -140,12 +141,12 @@ class TunnelManager(
      */
     private suspend fun requireNameAvailable(name: String) {
         if (Tunnel.isNameInvalid(name))
-            throw IllegalArgumentException("Invalid tunnel name")
+            throw IllegalArgumentException(Strings.TUNNEL_ERROR_INVALID_NAME)
         if (tunnels.any { it.name == name })
-            throw IllegalArgumentException("A tunnel named \"$name\" already exists")
+            throw IllegalArgumentException(Strings.tunnelErrorAlreadyExists(name))
         val running = withContext(Dispatchers.IO) { backend.runningTunnelNames }
         if (running.contains(name))
-            throw IllegalArgumentException("An interface named \"$name\" is already running on this system")
+            throw IllegalArgumentException(Strings.interfaceAlreadyRunning(name))
     }
 
     @Throws(Exception::class)

@@ -15,12 +15,12 @@ object QuantityFormatter {
 
     /** Formats a byte count as B / KiB / MiB / GiB / TiB. */
     fun formatBytes(bytes: Long): String = when {
-        bytes < KIB -> "$bytes B"
+        bytes < KIB -> Strings.bytes(bytes)
         // Divide as doubles: "%.2f" throws for integer arguments.
-        bytes < MIB -> "%.2f KiB".format(bytes / KIB.toDouble())
-        bytes < GIB -> "%.2f MiB".format(bytes / MIB.toDouble())
-        bytes < TIB -> "%.2f GiB".format(bytes / GIB.toDouble())
-        else -> "%.2f TiB".format(bytes / TIB.toDouble())
+        bytes < MIB -> Strings.kibibytes(bytes / KIB.toDouble())
+        bytes < GIB -> Strings.mebibytes(bytes / MIB.toDouble())
+        bytes < TIB -> Strings.gibibytes(bytes / GIB.toDouble())
+        else -> Strings.tebibytes(bytes / TIB.toDouble())
     }
 
     /**
@@ -29,9 +29,9 @@ object QuantityFormatter {
      * only emits the non-zero units.
      */
     fun formatEpochAgo(epochMillis: Long): String {
-        if (epochMillis <= 0) return "now"
+        if (epochMillis <= 0) return Strings.NOW
         val elapsed = System.currentTimeMillis() - epochMillis
-        if (elapsed <= 0) return "now"
+        if (elapsed <= 0) return Strings.NOW
 
         val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsed)
         val days = seconds / 86_400
@@ -40,10 +40,10 @@ object QuantityFormatter {
         val secs = seconds % 60
 
         val parts = ArrayList<String>(4)
-        if (days > 0) parts.add(unit(days, "day"))
-        if (hours > 0) parts.add(unit(hours, "hour"))
-        if (minutes > 0) parts.add(unit(minutes, "minute"))
-        if (secs > 0 || parts.isEmpty()) parts.add(unit(secs, "second"))
+        if (days > 0) parts.add(Strings.days(days))
+        if (hours > 0) parts.add(Strings.hours(hours))
+        if (minutes > 0) parts.add(Strings.minutes(minutes))
+        if (secs > 0 || parts.isEmpty()) parts.add(Strings.seconds(secs))
         return parts.joinToString(", ")
     }
 
@@ -53,7 +53,6 @@ object QuantityFormatter {
         return abs(System.currentTimeMillis() - epochMillis) <= maxAgeMillis
     }
 
-    private fun unit(value: Long, name: String) = "$value ${if (value == 1L) name else "${name}s"}"
 
     private const val KIB = 1024L
     private const val MIB = 1024L * 1024

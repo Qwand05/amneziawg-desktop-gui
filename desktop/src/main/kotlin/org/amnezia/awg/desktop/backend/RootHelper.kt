@@ -5,6 +5,7 @@
 package org.amnezia.awg.desktop.backend
 
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.Strings
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -38,10 +39,10 @@ class RootHelper private constructor(
     val isAlive: Boolean get() = process.isAlive
 
     /** Human readable description of how privileged commands are executed. */
-    val description: String = when (mode) {
-        MODE_DIRECT -> "running directly as root"
-        MODE_SUDO -> "running through sudo"
-        else -> "running through pkexec"
+    val description: String get() = when (mode) {
+        MODE_DIRECT -> Strings.PRIVILEGES_ROOT
+        MODE_SUDO -> Strings.PRIVILEGES_SUDO
+        else -> Strings.PRIVILEGES_PKEXEC
     }
 
     /**
@@ -209,10 +210,7 @@ class RootHelper private constructor(
             } catch (e: Exception) {
                 helper.close()
                 AppLog.w(TAG, "Privileged helper did not start: authentication cancelled or failed", e)
-                throw RootHelperException(
-                    "auth",
-                    "Administrator authentication was cancelled or failed",
-                ).apply { initCause(e) }
+                throw RootHelperException("auth", Strings.AUTH_FAILED).apply { initCause(e) }
             }
             AppLog.i(TAG, "Privileged helper running")
             return helper

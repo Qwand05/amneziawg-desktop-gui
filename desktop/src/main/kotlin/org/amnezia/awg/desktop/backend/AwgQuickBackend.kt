@@ -8,6 +8,7 @@ import org.amnezia.awg.backend.BackendException
 import org.amnezia.awg.backend.Tunnel
 import org.amnezia.awg.config.Config
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.Strings
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -39,7 +40,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
 
     /** Human readable description of how root is reached, for the settings UI. */
     val privilegeDescription: String
-        get() = helperInstance?.takeIf { it.isAlive }?.description ?: "not started yet"
+        get() = helperInstance?.takeIf { it.isAlive }?.description ?: Strings.PRIVILEGES_NOT_STARTED
 
     /** Start the privileged helper (prompting for authentication) if needed. */
     @Synchronized

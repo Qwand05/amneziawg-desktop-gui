@@ -4,212 +4,270 @@
  */
 package org.amnezia.awg.desktop.util
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import java.util.Locale
+
 /**
- * User visible strings of the desktop GUI.
+ * User visible strings of the desktop GUI, in the current language.
  *
- * The English values are taken verbatim from
- * `ui/src/main/res/values/strings.xml` so that the port reads exactly like the
- * Android application.
+ * The texts live in `/i18n/strings*.properties` (see [I18n]); most keys and
+ * translations come from the Android app. The active table is Compose state,
+ * so switching the language with [setLanguage] recomposes every screen.
  */
 object Strings {
     const val APP_NAME = "AmneziaWG"
 
+    /** The system language as detected at startup, before any override. */
+    val systemLocale: Locale = Locale.getDefault()
+
+    private var table: I18n.Table by mutableStateOf(I18n.load(I18n.resolve(systemLocale)))
+
+    /** The language in use. */
+    val language: Language get() = table.language
+
+    /** Switch to [language], or to the system language when null. */
+    fun setLanguage(language: Language?) {
+        table = I18n.load(language ?: I18n.resolve(systemLocale))
+    }
+
+    private fun t(key: String): String = table[key]
+    private fun f(key: String, vararg args: Any?): String = String.format(table.locale, table[key], *args)
+    private fun p(key: String, count: Int, vararg args: Any?): String =
+        String.format(table.locale, table.plural(key, count.toLong()), count, *args)
 
     // Tunnel list
-    const val TUNNEL_LIST_PLACEHOLDER = "Add a tunnel using the button below"
-    const val TUNNEL_STATUS_CONNECTED = "Connected"
-    const val TUNNEL_STATUS_CONNECTING = "Connecting…"
-    const val SETTINGS = "Settings"
-    const val SELECT_ALL = "Select all"
-    const val SELECT = "Select"
-    const val DESELECT = "Deselect"
-    const val SELECTED = "Selected"
-    const val CLEAR_SELECTION = "Clear selection"
-    const val CONNECT = "Connect"
-    const val DISCONNECT = "Disconnect"
-    const val SHOW_DETAILS = "Show details"
-    fun deleteSelected(count: Int) = "Delete $count tunnels"
-    const val DELETE = "Delete"
-    const val EDIT = "Edit"
-    const val SAVE = "Save"
-    const val CANCEL = "Cancel"
-    const val BACK = "Back"
-    const val CLOSE = "Close"
-    const val SELECT_TUNNEL_HINT = "Select a tunnel to see its details"
-    const val TOOLS_MISSING = "awg-quick was not found. Install amneziawg-tools to bring tunnels up."
-    const val REFRESH = "Refresh"
+    val TUNNEL_LIST_PLACEHOLDER get() = t("tunnel_list_placeholder")
+    val TUNNEL_STATUS_CONNECTED get() = t("tunnel_status_connected")
+    val TUNNEL_STATUS_CONNECTING get() = t("tunnel_status_connecting")
+    val SETTINGS get() = t("settings")
+    val SELECT_ALL get() = t("select_all")
+    val SELECT get() = t("select")
+    val DESELECT get() = t("deselect")
+    val SELECTED get() = t("selected")
+    val CLEAR_SELECTION get() = t("clear_selection")
+    val CONNECT get() = t("connect")
+    val DISCONNECT get() = t("disconnect")
+    val SHOW_DETAILS get() = t("show_details")
+    val DELETE get() = t("delete")
+    val EDIT get() = t("edit")
+    val SAVE get() = t("save")
+    val CANCEL get() = t("cancel")
+    val BACK get() = t("back")
+    val CLOSE get() = t("close")
+    val REFRESH get() = t("refresh")
+    val APPLY get() = t("apply")
+    val SELECT_TUNNEL_HINT get() = t("select_tunnel_hint")
+    val TOOLS_MISSING get() = t("tools_missing")
+    fun deleteTitle(count: Int) = p("delete_title", count)
+    fun deleteSuccess(count: Int) = p("delete_success", count)
+    fun deleteError(count: Int, error: String) = p("delete_error", count, error)
+    fun deleteConfirmTitle(count: Int) = p("delete_confirm_title", count)
+    fun deleteSelected(count: Int) = p("delete_selected", count)
 
-    fun deleteTitle(count: Int) = plural(count, "%d tunnel selected", "%d tunnels selected")
-    fun deleteSuccess(count: Int) =
-        plural(count, "Successfully deleted %d tunnel", "Successfully deleted %d tunnels")
-    fun deleteError(count: Int, error: String) =
-        plural(count, "Unable to delete %d tunnel: %s", "Unable to delete %d tunnels: %s")
-            .replace("%d", count.toString()).replace("%s", error)
+    // Adding tunnels
+    val CREATE_FROM_FILE get() = t("create_from_file")
+    val CREATE_FROM_QR_CODE get() = t("create_from_qr_code")
+    val CREATE_FROM_QR_IMAGE get() = t("create_from_qr_image")
+    val CREATE_FROM_CLIPBOARD get() = t("create_from_clipboard")
+    val CREATE_EMPTY get() = t("create_empty")
+    val IMPORT_TUNNEL_TITLE get() = t("import_tunnel_title")
+    val IMPORT_DISCLAIMER get() = t("import_disclaimer")
+    val IMPORT_FROM_QR_CODE get() = t("import_from_qr_code")
+    val TUNNEL_NAME get() = t("tunnel_name")
+    val CREATE_TUNNEL get() = t("create_tunnel")
+    val NO_CAMERA get() = t("no_camera")
+    val FFMPEG_MISSING get() = t("ffmpeg_missing")
+    val QR_SCAN_HINT get() = t("qr_scan_hint")
+    val QR_NOT_A_CONFIG get() = t("qr_not_a_config")
+    fun cameraError(error: String) = f("camera_error", error)
+    fun cameraStopped(name: String) = f("camera_stopped", name)
+    val UNSUPPORTED_IMAGE get() = t("unsupported_image")
+    val QR_CODE_HINT get() = t("qr_code_hint")
+    fun importError(error: String) = f("import_error", error)
+    val BAD_EXTENSION_ERROR get() = t("bad_extension_error")
+    fun illegalFilenameError(name: String) = f("illegal_filename_error", name)
+    val NO_CONFIGS_ERROR get() = t("no_configs_error")
+    val NO_TUNNELS_ERROR get() = t("no_tunnels_error")
+    fun importSuccess(name: String) = f("import_success", name)
+    fun importTotalSuccess(count: Int) = p("import_total_success", count)
+    fun importPartialSuccess(done: Int, total: Int) =
+        String.format(table.locale, table.plural("import_partial_success", total.toLong()), done, total)
 
-    fun deleteConfirmTitle(count: Int) = plural(count, "Delete this tunnel?", "Delete $count tunnels?")
+    // Tunnel details
+    val INTERFACE_TITLE get() = t("interface_title")
+    val PEER get() = t("peer")
+    val NAME get() = t("name")
+    val PUBLIC_KEY get() = t("public_key")
+    val PRIVATE_KEY get() = t("private_key")
+    val ADDRESSES get() = t("addresses")
+    val DNS_SERVERS get() = t("dns_servers")
+    val DNS_SEARCH_DOMAINS get() = t("dns_search_domains")
+    val LISTEN_PORT get() = t("listen_port")
+    val MTU get() = t("mtu")
+    val ALLOWED_IPS get() = t("allowed_ips")
+    val ENDPOINT get() = t("endpoint")
+    val PERSISTENT_KEEPALIVE get() = t("persistent_keepalive")
+    val PRE_SHARED_KEY get() = t("pre_shared_key")
+    val PRE_SHARED_KEY_ENABLED get() = t("pre_shared_key_enabled")
+    val TRANSFER get() = t("transfer")
+    val LATEST_HANDSHAKE get() = t("latest_handshake")
+    val APPLICATIONS get() = t("applications")
+    val SHOW_QR_CODE get() = t("show_qr_code")
+    val EXPORT_CONFIG get() = t("export_config")
+    val SHOW_STATISTICS get() = t("show_statistics")
+    fun transferRxTx(rx: String, tx: String) = f("transfer_rx_tx", rx, tx)
+    fun latestHandshakeAgo(ago: String) = f("latest_handshake_ago", ago)
+    fun persistentKeepaliveSuffix(count: Int) = table.plural("persistent_keepalive_seconds_suffix", count.toLong())
+    fun copiedToClipboard(label: String) = f("copied_to_clipboard", label)
 
-    private fun plural(count: Int, one: String, other: String) = if (count == 1) one else other
-
-    // Add-tunnels sheet / import
-    const val CREATE_FROM_FILE = "Import from file or archive"
-    const val CREATE_FROM_QR_CODE = "Scan from QR code"
-    const val CREATE_FROM_QR_IMAGE = "Import from QR code image"
-    const val CREATE_EMPTY = "Create from scratch"
-    const val CREATE_FROM_CLIPBOARD = "Import from clipboard"
-    const val IMPORT_DISCLAIMER =
-        "Ensure that you obtained the configuration file from a trusted source.\n\n" +
-            "Official Amnezia services are available only at amnezia.org"
-    const val IMPORT_FROM_QR_CODE = "Import Tunnel from QR Code"
-    const val TUNNEL_NAME = "Tunnel Name"
-    const val CREATE_TUNNEL = "Create Tunnel"
-    const val NO_CAMERA = "No camera detected"
-    const val FFMPEG_MISSING = "Install ffmpeg to use the camera"
-    const val QR_SCAN_HINT = "Point the camera at a configuration QR code"
-    const val QR_NOT_A_CONFIG = "This QR code is not an AmneziaWG configuration"
-    const val CAMERA_ERROR = "Unable to use the camera: %s"
-    const val QR_CODE_HINT = "Tip: generate with `qrencode -t ansiutf8 < tunnel.conf`."
-    const val IMPORT_ERROR = "Unable to import tunnel: %s"
-    const val BAD_EXTENSION_ERROR = "File must be .conf or .zip"
-    const val ILLEGAL_FILENAME_ERROR = "Illegal file name “%s”"
-    const val NO_CONFIGS_ERROR = "No configurations found"
-    const val NO_TUNNELS_ERROR = "No tunnels exist"
-    const val IMPORT_SUCCESS = "Imported “%s”"
-    fun importTotalSuccess(count: Int) =
-        plural(count, "Imported %d tunnel", "Imported %d tunnels").replace("%d", count.toString())
-    fun importPartialSuccess(done: Int, total: Int) = "Imported $done of $total tunnels"
-
-    // Tunnel detail
-    const val INTERFACE_TITLE = "Interface"
-    const val PEER = "Peer"
-    const val NAME = "Name"
-    const val PUBLIC_KEY = "Public key"
-    const val PRIVATE_KEY = "Private key"
-    const val ADDRESSES = "Addresses"
-    const val DNS_SERVERS = "DNS servers"
-    const val DNS_SEARCH_DOMAINS = "Search domains"
-    const val LISTEN_PORT = "Listen port"
-    const val MTU = "MTU"
-    const val ALLOWED_IPS = "Allowed IPs"
-    const val ENDPOINT = "Endpoint"
-    const val PERSISTENT_KEEPALIVE = "Persistent keepalive"
-    const val PRE_SHARED_KEY = "Pre-shared key"
-    const val PRE_SHARED_KEY_ENABLED = "enabled"
-    const val TRANSFER = "Transfer"
-    const val LATEST_HANDSHAKE = "Latest handshake"
-    const val APPLICATIONS = "Applications"
-    const val SHOW_QR_CODE = "Show QR code"
-    const val EXPORT_CONFIG = "Export configuration file"
-    const val SHOW_STATISTICS = "Show live statistics (requires authentication)"
-    fun excludedApplications(count: Int) = "$count excluded"
-    fun includedApplications(count: Int) = "$count included"
-    fun transferRxTx(rx: String, tx: String) = "rx: $rx, tx: $tx"
-    fun latestHandshakeAgo(ago: String) = "$ago ago"
+    // Units
+    fun bytes(count: Long) = f("transfer_bytes", count)
+    fun kibibytes(value: Double) = f("transfer_kibibytes", value)
+    fun mebibytes(value: Double) = f("transfer_mibibytes", value)
+    fun gibibytes(value: Double) = f("transfer_gibibytes", value)
+    fun tebibytes(value: Double) = f("transfer_tibibytes", value)
+    fun days(count: Long) = String.format(table.locale, table.plural("duration_days", count), count)
+    fun hours(count: Long) = String.format(table.locale, table.plural("duration_hours", count), count)
+    fun minutes(count: Long) = String.format(table.locale, table.plural("duration_minutes", count), count)
+    fun seconds(count: Long) = String.format(table.locale, table.plural("duration_seconds", count), count)
+    val NOW get() = t("time_now")
 
     // Editor
-    const val JUNK_PACKET_COUNT = "Junk packet count"
-    const val JUNK_PACKET_MIN_SIZE = "Junk packet minimum size"
-    const val JUNK_PACKET_MAX_SIZE = "Junk packet maximum size"
-    const val INIT_PACKET_JUNK_SIZE = "Init packet junk size"
-    const val RESPONSE_PACKET_JUNK_SIZE = "Response packet junk size"
-    const val COOKIE_REPLY_PACKET_JUNK_SIZE = "Cookie reply packet junk size"
-    const val TRANSPORT_PACKET_JUNK_SIZE = "Transport packet junk size"
-    const val INIT_PACKET_MAGIC_HEADER = "Init packet magic header"
-    const val RESPONSE_PACKET_MAGIC_HEADER = "Response packet magic header"
-    const val UNDERLOAD_PACKET_MAGIC_HEADER = "Underload packet magic header"
-    const val TRANSPORT_PACKET_MAGIC_HEADER = "Transport packet magic header"
-    const val SPECIAL_JUNK_I1 = "Special junk I1"
-    const val SPECIAL_JUNK_I2 = "Special junk I2"
-    const val SPECIAL_JUNK_I3 = "Special junk I3"
-    const val SPECIAL_JUNK_I4 = "Special junk I4"
-    const val SPECIAL_JUNK_I5 = "Special junk I5"
-    const val HEADER_PROTECTION_KEY = "Header protection key"
-    const val CONTENT_PADDING_ADDITION = "Content padding addition"
-    const val REKEY_AFTER_TIME = "Rekey after time"
-    const val REKEY_TIMEOUT = "Rekey timeout"
-    const val REJECT_AFTER_TIME = "Reject after time"
-    const val KEEPALIVE_TIMEOUT = "Keepalive timeout"
-    const val MAX_HANDSHAKE_ATTEMPTS = "Max handshake attempts"
-    const val RANDOM_TRAILERS = "Random trailers"
-    const val DISABLE_COOKIES = "Disable cookies"
-    const val ADD_PEER = "Add peer"
-    const val AWG_PARAMETERS = "AmneziaWG obfuscation parameters"
-    const val EXCLUDE_PRIVATE_IPS = "Exclude private IPs"
-    const val GENERATE_NEW_PRIVATE_KEY = "Generate new private key"
-    const val HINT_AUTOMATIC = "(auto)"
-    const val HINT_GENERATED = "(generated)"
-    const val HINT_OPTIONAL = "(optional)"
-    const val HINT_OPTIONAL_DISCOURAGED = "(optional, not recommended)"
-    const val HINT_RANDOM = "(random)"
-    const val ALL_APPLICATIONS = "All Applications"
-    fun persistentKeepaliveSuffix(count: Int) = if (count == 1) "second" else "seconds"
-
-    fun tunnelCreateSuccess(name: String) = "Successfully created tunnel “$name”"
-    const val TUNNEL_CREATE_ERROR = "Unable to create tunnel: %s"
-    fun configSaveSuccess(name: String) = "Successfully saved configuration for “$name”"
-    fun configSaveError(name: String, error: String) = "Cannot save configuration for “$name”: $error"
-    fun tunnelRenameSuccess(name: String) = "Successfully renamed tunnel to “$name”"
-    const val TUNNEL_RENAME_ERROR = "Unable to rename tunnel: %s"
-    const val TUNNEL_ERROR_INVALID_NAME = "Invalid name"
-    fun tunnelErrorAlreadyExists(name: String) = "Tunnel “$name” already exists"
-    const val CREATE_ACTIVITY_TITLE = "Create AmneziaWG Tunnel"
-    fun copiedToClipboard(label: String) = "$label copied to clipboard"
+    val JUNK_PACKET_COUNT get() = t("junk_packet_count")
+    val JUNK_PACKET_MIN_SIZE get() = t("junk_packet_min_size")
+    val JUNK_PACKET_MAX_SIZE get() = t("junk_packet_max_size")
+    val INIT_PACKET_JUNK_SIZE get() = t("init_packet_junk_size")
+    val RESPONSE_PACKET_JUNK_SIZE get() = t("response_packet_junk_size")
+    val COOKIE_REPLY_PACKET_JUNK_SIZE get() = t("cookie_reply_packet_junk_size")
+    val TRANSPORT_PACKET_JUNK_SIZE get() = t("transport_packet_junk_size")
+    val INIT_PACKET_MAGIC_HEADER get() = t("init_packet_magic_header")
+    val RESPONSE_PACKET_MAGIC_HEADER get() = t("response_packet_magic_header")
+    val UNDERLOAD_PACKET_MAGIC_HEADER get() = t("underload_packet_magic_header")
+    val TRANSPORT_PACKET_MAGIC_HEADER get() = t("transport_packet_magic_header")
+    val SPECIAL_JUNK_I1 get() = t("special_junk_i1")
+    val SPECIAL_JUNK_I2 get() = t("special_junk_i2")
+    val SPECIAL_JUNK_I3 get() = t("special_junk_i3")
+    val SPECIAL_JUNK_I4 get() = t("special_junk_i4")
+    val SPECIAL_JUNK_I5 get() = t("special_junk_i5")
+    val HEADER_PROTECTION_KEY get() = t("header_protection_key")
+    val CONTENT_PADDING_ADDITION get() = t("content_padding_addition")
+    val REKEY_AFTER_TIME get() = t("rekey_after_time")
+    val REKEY_TIMEOUT get() = t("rekey_timeout")
+    val REJECT_AFTER_TIME get() = t("reject_after_time")
+    val KEEPALIVE_TIMEOUT get() = t("keepalive_timeout")
+    val MAX_HANDSHAKE_ATTEMPTS get() = t("max_handshake_attempts")
+    val RANDOM_TRAILERS get() = t("random_trailers")
+    val DISABLE_COOKIES get() = t("disable_cookies")
+    val AWG_PARAMETERS get() = t("awg_parameters")
+    val ADD_PEER get() = t("add_peer")
+    val EXCLUDE_PRIVATE_IPS get() = t("exclude_private_ips")
+    val GENERATE_NEW_PRIVATE_KEY get() = t("generate_new_private_key")
+    val HINT_AUTOMATIC get() = t("hint_automatic")
+    val HINT_GENERATED get() = t("hint_generated")
+    val HINT_OPTIONAL get() = t("hint_optional")
+    val HINT_OPTIONAL_DISCOURAGED get() = t("hint_optional_discouraged")
+    val HINT_RANDOM get() = t("hint_random")
+    val CREATE_ACTIVITY_TITLE get() = t("create_activity_title")
+    fun tunnelCreateSuccess(name: String) = f("tunnel_create_success", name)
+    fun tunnelCreateError(error: String) = f("tunnel_create_error", error)
+    fun configSaveSuccess(name: String) = f("config_save_success", name)
+    fun configSaveError(name: String, error: String) = f("config_save_error", name, error)
+    fun tunnelRenameSuccess(name: String) = f("tunnel_rename_success", name)
+    fun tunnelRenameError(error: String) = f("tunnel_rename_error", error)
+    val TUNNEL_ERROR_INVALID_NAME get() = t("tunnel_error_invalid_name")
+    fun tunnelErrorAlreadyExists(name: String) = f("tunnel_error_already_exists", name)
+    fun interfaceAlreadyRunning(name: String) = f("interface_already_running", name)
 
     // Settings
-    fun versionTitle(version: String) = "AmneziaWG for Linux v$version"
-    const val VERSION_SUMMARY = "%1\$s backend %2\$s"
-    fun versionSummaryChecking(name: String) = "Checking $name backend version"
-    fun versionSummaryUnknown(name: String) = "Unknown $name version"
-    const val TYPE_NAME_KERNEL_MODULE = "Kernel module"
-    const val TOOLS_TITLE = "AmneziaWG tools"
-    const val PRIVILEGES_TITLE = "Administrator access"
-    const val CONFIG_DIR_TITLE = "Configuration directory"
-    const val RESTORE_ON_BOOT_TITLE = "Restore tunnels on application start"
-    const val RESTORE_ON_BOOT_SUMMARY_ON = "Will bring up enabled tunnels at start"
-    const val RESTORE_ON_BOOT_SUMMARY_OFF = "Will not bring up enabled tunnels at start"
-    const val DARK_THEME_TITLE = "Use dark theme"
-    const val DARK_THEME_SUMMARY_ON = "Currently using dark (night) theme"
-    const val DARK_THEME_SUMMARY_OFF = "Currently using light (day) theme"
-    const val CLOSE_TO_TRAY_TITLE = "Keep running in the system tray"
-    const val CLOSE_TO_TRAY_SUMMARY_ON = "Closing the window hides it to the tray"
-    const val CLOSE_TO_TRAY_SUMMARY_OFF = "Closing the window quits the application"
-    const val CLOSE_TO_TRAY_UNAVAILABLE = "No system tray is available on this desktop"
-    const val TRAY_SHOW = "Show AmneziaWG"
-    const val TRAY_HIDE = "Hide AmneziaWG"
-    const val TRAY_NO_TUNNELS = "No tunnels"
-    const val TRAY_QUIT = "Quit"
-    const val TRAY_DISCONNECTED = "No tunnels connected"
-    fun trayConnected(names: List<String>) = "Connected: ${names.joinToString(", ")}"
-    const val ACCENT_COLOR_TITLE = "Accent color"
-    const val STATUS_COLOR_TITLE = "Status color"
-    const val RESET_COLORS_TITLE = "Reset colors"
-    const val RESET_COLORS_SUMMARY = "Restore the default AmneziaWG colors"
-    const val COLOR_HEX = "Hex"
-    const val APPLY = "Apply"
-    const val MULTIPLE_TUNNELS_TITLE = "Allow multiple simultaneous tunnels"
-    const val MULTIPLE_TUNNELS_SUMMARY_ON = "Multiple tunnels may be turned on simultaneously"
-    const val MULTIPLE_TUNNELS_SUMMARY_OFF = "Turning on one tunnel will turn off others"
-    const val ZIP_EXPORT_TITLE = "Export tunnels to zip file"
-    const val ZIP_EXPORT_SUMMARY = "Save all tunnel configurations to a zip file"
-    fun zipExportSuccess(path: String) = "Saved to “$path”"
-    const val ZIP_EXPORT_ERROR = "Unable to export tunnels: %s"
-    const val LOG_VIEWER_PREF_TITLE = "View application log"
-    const val LOG_VIEWER_PREF_SUMMARY = "Logs may assist with debugging"
-    const val IMPORT_TUNNEL_TITLE = "Import tunnels"
+    fun versionTitle(version: String) = f("version_title", version)
+    fun versionSummary(type: String, version: String) = f("version_summary", type, version)
+    fun versionSummaryChecking(name: String) = f("version_summary_checking", name)
+    fun versionSummaryUnknown(name: String) = f("version_summary_unknown", name)
+    val TYPE_NAME_KERNEL_MODULE get() = t("type_name_kernel_module")
+    val TOOLS_TITLE get() = t("tools_title")
+    val PRIVILEGES_TITLE get() = t("privileges_title")
+    val PRIVILEGES_NOT_STARTED get() = t("privileges_not_started")
+    val PRIVILEGES_PKEXEC get() = t("privileges_pkexec")
+    val PRIVILEGES_SUDO get() = t("privileges_sudo")
+    val PRIVILEGES_ROOT get() = t("privileges_root")
+    val CONFIG_DIR_TITLE get() = t("config_dir_title")
+    val LANGUAGE_TITLE get() = t("language_title")
+    fun languageSystem(name: String) = f("language_system", name)
+    val RESTORE_ON_BOOT_TITLE get() = t("restore_on_start_title")
+    val RESTORE_ON_BOOT_SUMMARY_ON get() = t("restore_on_start_summary_on")
+    val RESTORE_ON_BOOT_SUMMARY_OFF get() = t("restore_on_start_summary_off")
+    val MULTIPLE_TUNNELS_TITLE get() = t("multiple_tunnels_title")
+    val MULTIPLE_TUNNELS_SUMMARY_ON get() = t("multiple_tunnels_summary_on")
+    val MULTIPLE_TUNNELS_SUMMARY_OFF get() = t("multiple_tunnels_summary_off")
+    val CLOSE_TO_TRAY_TITLE get() = t("close_to_tray_title")
+    val CLOSE_TO_TRAY_SUMMARY_ON get() = t("close_to_tray_summary_on")
+    val CLOSE_TO_TRAY_SUMMARY_OFF get() = t("close_to_tray_summary_off")
+    val CLOSE_TO_TRAY_UNAVAILABLE get() = t("close_to_tray_unavailable")
+    val DARK_THEME_TITLE get() = t("dark_theme_title")
+    val DARK_THEME_SUMMARY_ON get() = t("dark_theme_summary_on")
+    val DARK_THEME_SUMMARY_OFF get() = t("dark_theme_summary_off")
+    val ACCENT_COLOR_TITLE get() = t("accent_color_title")
+    val STATUS_COLOR_TITLE get() = t("status_color_title")
+    val RESET_COLORS_TITLE get() = t("reset_colors_title")
+    val RESET_COLORS_SUMMARY get() = t("reset_colors_summary")
+    val COLOR_HEX get() = t("color_hex")
+    val ZIP_EXPORT_TITLE get() = t("zip_export_title")
+    val ZIP_EXPORT_SUMMARY get() = t("zip_export_save_summary")
+    fun zipExportSuccess(path: String) = f("zip_export_success", path)
+    fun zipExportError(error: String) = f("zip_export_error", error)
+    val LOG_VIEWER_PREF_TITLE get() = t("log_viewer_pref_title")
+    val LOG_VIEWER_PREF_SUMMARY get() = t("log_viewer_pref_summary")
+
+    // Tray
+    val TRAY_SHOW get() = t("tray_show")
+    val TRAY_HIDE get() = t("tray_hide")
+    val TRAY_NO_TUNNELS get() = t("tray_no_tunnels")
+    val TRAY_QUIT get() = t("tray_quit")
+    val TRAY_DISCONNECTED get() = t("tray_disconnected")
+    fun trayConnected(names: List<String>) = f("tray_connected", names.joinToString(", "))
 
     // Log viewer
-    const val LOG_VIEWER_TITLE = "Log"
-    const val LOG_EXPORT_TITLE = "Export log file"
-    fun logExportSuccess(path: String) = "Saved to “$path”"
-    const val LOG_EXPORT_ERROR = "Unable to export log: %s"
-    const val LOG_EMPTY = "No log entries yet"
-    const val LOG_TAB_APP = "Application"
-    const val LOG_TAB_SYSTEM = "System journal"
-    fun logFileHint(path: String) = "Also saved to $path"
-    const val SYSTEM_JOURNAL_HINT = "AmneziaWG kernel module and awg-quick service entries of the system journal"
-    const val SYSTEM_JOURNAL_EMPTY = "No AmneziaWG entries in the system journal"
+    val LOG_VIEWER_TITLE get() = t("log_viewer_title")
+    val LOG_EXPORT_TITLE get() = t("log_export_title")
+    fun logExportSuccess(path: String) = f("log_export_success", path)
+    fun logExportError(error: String) = f("log_export_error", error)
+    val LOG_EMPTY get() = t("log_empty")
+    val LOG_TAB_APP get() = t("log_tab_app")
+    val LOG_TAB_SYSTEM get() = t("log_tab_system")
+    fun logFileHint(path: String) = f("log_file_hint", path)
+    val SYSTEM_JOURNAL_HINT get() = t("system_journal_hint")
+    val SYSTEM_JOURNAL_EMPTY get() = t("system_journal_empty")
 
-    // Toggle errors
-    const val ERROR_UP = "Error bringing up tunnel: %s"
-    const val ERROR_DOWN = "Error bringing down tunnel: %s"
-    const val UNKNOWN_ERROR = "Unknown error"
+    // Errors
+    fun errorUp(error: String) = f("error_up", error)
+    fun errorDown(error: String) = f("error_down", error)
+    val UNKNOWN_ERROR get() = t("unknown_error")
+    fun unknownErrorType(type: String) = f("unknown_error_type", type)
+    val AUTH_FAILED get() = t("auth_failed")
+    fun privilegedOperationFailed(code: String, message: String) = f("privileged_operation_failed", code, message)
+    val MODULE_VERSION_ERROR get() = t("module_version_error")
+    val NO_CONFIG_ERROR get() = t("no_config_error")
+    fun tunnelConfigError(message: String) = f("tunnel_config_error_message", message)
+    val ERROR_NO_QR_FOUND get() = t("error_no_qr_found")
+    val ERROR_QR_CHECKSUM get() = t("error_qr_checksum")
+    fun badConfigError(reason: String, context: String) = f("bad_config_error", reason, context)
+    fun badConfigContext(section: String, location: String) = f("bad_config_context", section, location)
+    fun badConfigContextTopLevel(section: String) = f("bad_config_context_top_level", section)
+    fun badConfigReason(name: String) = t("bad_config_reason_$name")
+    val BAD_CONFIG_EXPLANATION_PKA get() = t("bad_config_explanation_pka")
+    val BAD_CONFIG_EXPLANATION_POSITIVE_NUMBER get() = t("bad_config_explanation_positive_number")
+    val BAD_CONFIG_EXPLANATION_UDP_PORT get() = t("bad_config_explanation_udp_port")
+    val KEY_CONTENTS_ERROR get() = t("key_contents_error")
+    val KEY_LENGTH_ERROR get() = t("key_length_error")
+    val KEY_LENGTH_EXPLANATION_BASE64 get() = t("key_length_explanation_base64")
+    val KEY_LENGTH_EXPLANATION_BINARY get() = t("key_length_explanation_binary")
+    val KEY_LENGTH_EXPLANATION_HEX get() = t("key_length_explanation_hex")
+    fun parseErrorReason(type: String, text: String) = f("parse_error_reason", type, text)
+    val PARSE_ERROR_GENERIC get() = t("parse_error_generic")
+    val PARSE_ERROR_INET_ADDRESS get() = t("parse_error_inet_address")
+    val PARSE_ERROR_INET_ENDPOINT get() = t("parse_error_inet_endpoint")
+    val PARSE_ERROR_INET_NETWORK get() = t("parse_error_inet_network")
+    val PARSE_ERROR_INTEGER get() = t("parse_error_integer")
 }

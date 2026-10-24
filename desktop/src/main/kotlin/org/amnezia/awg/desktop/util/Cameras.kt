@@ -122,7 +122,7 @@ class QrCameraScanner(
         } catch (e: Exception) {
             if (!closed) {
                 val stderr = process.errorStream.bufferedReader(StandardCharsets.UTF_8).readText().trim()
-                onError(stderr.ifEmpty { if (e is EOFException) "${camera.name} stopped" else e.message ?: e.toString() })
+                onError(stderr.ifEmpty { if (e is EOFException) Strings.cameraStopped(camera.name) else e.message ?: e.toString() })
             }
         } finally {
             close()

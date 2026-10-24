@@ -73,7 +73,7 @@ fun QrScannerDialog(cameras: List<CameraDevice>, onDismiss: () -> Unit, onConfig
             onError = { error ->
                 SwingUtilities.invokeLater {
                     failed = true
-                    message = Strings.CAMERA_ERROR.format(error)
+                    message = Strings.cameraError(error)
                 }
             },
         )

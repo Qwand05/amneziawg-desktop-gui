@@ -48,7 +48,7 @@ fun AppState.exportConfig(tunnel: ObservableTunnel, config: Config) {
         )
         showSnackbar(Strings.zipExportSuccess(target.absolutePath))
     } catch (e: Throwable) {
-        showSnackbar(Strings.ZIP_EXPORT_ERROR.format(ErrorMessages[e]))
+        showSnackbar(Strings.zipExportError(ErrorMessages[e]))
     }
 }
 

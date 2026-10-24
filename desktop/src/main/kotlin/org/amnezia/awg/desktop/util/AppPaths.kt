@@ -105,6 +105,7 @@ class Prefs private constructor(private val file: File) {
         const val KEY_DARK_THEME = "dark_theme"
         const val KEY_ACCENT_COLOR = "accent_color"
         const val KEY_CLOSE_TO_TRAY = "close_to_tray"
+        const val KEY_LANGUAGE = "language"
         const val KEY_STATUS_COLOR = "status_color"
         const val KEY_RESTORE_ON_BOOT = "restore_on_boot"
         const val KEY_LAST_USED_TUNNEL = "last_used_tunnel"

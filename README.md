@@ -38,7 +38,11 @@ with the AmneziaWG tools should work too.
   - allow multiple simultaneous tunnels;
   - dark theme;
   - custom accent and status colors;
-  - close to tray.
+  - close to tray;
+  - language.
+- **Languages**: English, German, Spanish, French, Italian, Polish, Portuguese (Brazil and
+  Portugal), Turkish, Russian, Ukrainian, Japanese and Simplified Chinese. The app follows the
+  system language by default; pick another one under **Settings → Language**.
 - **Log viewer**:
   - the app's own log, which records each connect and disconnect with the full `awg-quick` output,
     errors and crashes, and is also saved to `~/.local/state/amnezia-awg/app.log`;
@@ -100,7 +104,7 @@ build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment var
 Install it with:
 
 ```bash
-sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.0.3_amd64.deb
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.1_amd64.deb
 ```
 
 The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
@@ -250,6 +254,23 @@ Inside `desktop/src/main/kotlin/org/amnezia/awg/desktop/`:
 | `tray/` | StatusNotifierItem/dbusmenu tray and single-instance handling |
 | `theme/` | Colors |
 | `util/` | Import/export, cameras, settings |
+
+## Translations
+
+The texts are in `desktop/src/main/resources/i18n/`: `strings.properties` is the complete English
+reference, and `strings_<language>[_<COUNTRY>].properties` (UTF-8) hold the translations. Missing
+keys fall back to English. Plurals use `key.one`, `key.few`, `key.many` and `key.other`.
+
+Most strings are shared with the Android app and imported from its translations. To pull in
+updated Android translations (desktop-only strings are kept):
+
+```bash
+python3 desktop/tools/import_android_translations.py
+```
+
+The AmneziaWG obfuscation parameter names (junk packets, magic headers) stay in English, as in the
+Android app, so they match the keys in configuration files. `I18nTest` checks that every
+translation's placeholders fit the English text and that plural forms are complete.
 
 ## Development
 

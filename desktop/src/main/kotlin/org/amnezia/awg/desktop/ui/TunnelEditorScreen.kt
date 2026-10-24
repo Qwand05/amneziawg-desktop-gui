@@ -98,7 +98,7 @@ fun TunnelEditorScreen(app: AppState, tunnel: ObservableTunnel?) {
                         try {
                             tunnel.setNameAsync(name)
                         } catch (e: Throwable) {
-                            app.showSnackbar(Strings.TUNNEL_RENAME_ERROR.format(ErrorMessages[e]))
+                            app.showSnackbar(Strings.tunnelRenameError(ErrorMessages[e]))
                             return@launch
                         }
                         tunnel.setConfigAsync(newConfig)
@@ -115,7 +115,7 @@ fun TunnelEditorScreen(app: AppState, tunnel: ObservableTunnel?) {
             } catch (e: Throwable) {
                 val error = ErrorMessages[e]
                 app.showSnackbar(
-                    if (tunnel == null) Strings.TUNNEL_CREATE_ERROR.format(error)
+                    if (tunnel == null) Strings.tunnelCreateError(error)
                     else Strings.configSaveError(tunnel.name, error)
                 )
             } finally {

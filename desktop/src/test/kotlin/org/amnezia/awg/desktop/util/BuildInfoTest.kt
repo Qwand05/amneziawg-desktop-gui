@@ -11,6 +11,6 @@ class BuildInfoTest {
     @Test
     fun versionComesFromTheBuild() {
         // Generated from `appVersion` in desktop/build.gradle.kts, never the fallback.
-        assertTrue(BuildInfo.version, Regex("""\d+\.\d+\.\d+""").matches(BuildInfo.version))
+        assertTrue(BuildInfo.version, Regex("""\d+\.\d+(\.\d+)?""").matches(BuildInfo.version))
     }
 }

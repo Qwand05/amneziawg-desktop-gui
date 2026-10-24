@@ -8,6 +8,8 @@ import com.google.zxing.ChecksumException
 import com.google.zxing.NotFoundException
 import org.amnezia.awg.backend.BackendException
 import org.amnezia.awg.config.BadConfigException
+import org.amnezia.awg.config.InetEndpoint
+import org.amnezia.awg.config.InetNetwork
 import org.amnezia.awg.config.ParseException
 import org.amnezia.awg.crypto.Key
 import org.amnezia.awg.crypto.KeyFormatException
@@ -17,37 +19,9 @@ import java.net.InetAddress
 /**
  * Turns throwables into the user facing messages of the Android application
  * (`ui/.../util/ErrorMessages.kt`), minus the Android specific backends.
+ * Texts come from [Strings], so they follow the selected language.
  */
 object ErrorMessages {
-
-    private val BCE_REASON_MAP = mapOf(
-        BadConfigException.Reason.INVALID_KEY to "Invalid key",
-        BadConfigException.Reason.INVALID_NUMBER to "Invalid number",
-        BadConfigException.Reason.INVALID_VALUE to "Invalid value",
-        BadConfigException.Reason.MISSING_ATTRIBUTE to "Missing attribute",
-        BadConfigException.Reason.MISSING_SECTION to "Missing section",
-        BadConfigException.Reason.SYNTAX_ERROR to "Syntax error",
-        BadConfigException.Reason.UNKNOWN_ATTRIBUTE to "Unknown attribute",
-        BadConfigException.Reason.UNKNOWN_SECTION to "Unknown section",
-    )
-
-    private val KFE_FORMAT_MAP = mapOf(
-        Key.Format.BASE64 to ": AmneziaWG base64 keys must be 44 characters (32 bytes)",
-        Key.Format.BINARY to ": AmneziaWG keys must be 32 bytes",
-        Key.Format.HEX to ": AmneziaWG hex keys must be 64 characters (32 bytes)",
-    )
-
-    private val KFE_TYPE_MAP = mapOf(
-        KeyFormatException.Type.CONTENTS to "Bad characters in key",
-        KeyFormatException.Type.LENGTH to "Incorrect key length",
-    )
-
-    private val PE_CLASS_MAP = mapOf(
-        InetAddress::class.java to "IP address",
-        org.amnezia.awg.config.InetEndpoint::class.java to "endpoint",
-        org.amnezia.awg.config.InetNetwork::class.java to "IP network",
-        Int::class.java to "number",
-    )
 
     operator fun get(throwable: Throwable?): String {
         if (throwable == null) return Strings.UNKNOWN_ERROR
@@ -56,49 +30,45 @@ object ErrorMessages {
             rootCause is BadConfigException -> {
                 val reason = getBadConfigExceptionReason(rootCause)
                 val context = if (rootCause.location == BadConfigException.Location.TOP_LEVEL) {
-                    "${rootCause.section.name}"
+                    Strings.badConfigContextTopLevel(rootCause.section.getName())
                 } else {
-                    "${rootCause.section.name}'s ${rootCause.location.name}"
+                    Strings.badConfigContext(rootCause.section.getName(), rootCause.location.getName())
                 }
-                val explanation = getBadConfigExceptionExplanation(rootCause)
-                "$reason in $context$explanation"
+                Strings.badConfigError(reason, context) + getBadConfigExceptionExplanation(rootCause)
             }
 
             rootCause is BackendException ->
                 when (rootCause.reason) {
-                    BackendException.Reason.UNKNOWN_KERNEL_MODULE_NAME ->
-                        "Unable to determine kernel module version"
-                    BackendException.Reason.TUNNEL_MISSING_CONFIG ->
-                        "Trying to bring up a tunnel with no config"
-                    else -> "Unable to configure tunnel (${rootCause.format.firstOrNull() ?: "unknown error"})"
+                    BackendException.Reason.UNKNOWN_KERNEL_MODULE_NAME -> Strings.MODULE_VERSION_ERROR
+                    BackendException.Reason.TUNNEL_MISSING_CONFIG -> Strings.NO_CONFIG_ERROR
+                    else -> Strings.tunnelConfigError(rootCause.format.firstOrNull()?.toString() ?: Strings.UNKNOWN_ERROR)
                 }
 
             rootCause is RootHelperException ->
-                "Privileged operation failed (${rootCause.code}): ${rootCause.message}"
+                if (rootCause.code == "auth") rootCause.message ?: Strings.AUTH_FAILED
+                else Strings.privilegedOperationFailed(rootCause.code, rootCause.message.orEmpty())
 
-            rootCause is NotFoundException -> "QR code not found in image"
-            rootCause is ChecksumException -> "QR code checksum verification failed"
+            rootCause is NotFoundException -> Strings.ERROR_NO_QR_FOUND
+            rootCause is ChecksumException -> Strings.ERROR_QR_CHECKSUM
             rootCause.localizedMessage != null -> rootCause.localizedMessage!!
-            else -> "Unknown “${rootCause.javaClass.simpleName}” error"
+            else -> Strings.unknownErrorType(rootCause.javaClass.simpleName)
         }
     }
 
     private fun getBadConfigExceptionExplanation(bce: BadConfigException): String {
         val cause = bce.cause
         return when {
-            cause is KeyFormatException && cause.type == KeyFormatException.Type.LENGTH ->
-                KFE_FORMAT_MAP[cause.format] ?: ""
+            cause is KeyFormatException && cause.type == KeyFormatException.Type.LENGTH -> when (cause.format) {
+                Key.Format.BASE64 -> Strings.KEY_LENGTH_EXPLANATION_BASE64
+                Key.Format.BINARY -> Strings.KEY_LENGTH_EXPLANATION_BINARY
+                Key.Format.HEX -> Strings.KEY_LENGTH_EXPLANATION_HEX
+                else -> ""
+            }
 
             cause is ParseException -> cause.localizedMessage?.let { ": $it" } ?: ""
-
-            bce.location == BadConfigException.Location.LISTEN_PORT ->
-                ": Must be a valid UDP port number"
-
-            bce.location == BadConfigException.Location.MTU -> ": Must be positive"
-
-            bce.location == BadConfigException.Location.PERSISTENT_KEEPALIVE ->
-                ": Must be positive and no more than 65535"
-
+            bce.location == BadConfigException.Location.LISTEN_PORT -> Strings.BAD_CONFIG_EXPLANATION_UDP_PORT
+            bce.location == BadConfigException.Location.MTU -> Strings.BAD_CONFIG_EXPLANATION_POSITIVE_NUMBER
+            bce.location == BadConfigException.Location.PERSISTENT_KEEPALIVE -> Strings.BAD_CONFIG_EXPLANATION_PKA
             else -> ""
         }
     }
@@ -106,12 +76,24 @@ object ErrorMessages {
     private fun getBadConfigExceptionReason(bce: BadConfigException): String {
         val cause = bce.cause
         return when {
-            cause is KeyFormatException -> KFE_TYPE_MAP[cause.type] ?: "Invalid key"
-            cause is ParseException -> {
-                val type = PE_CLASS_MAP[cause.parsingClass] ?: "string"
-                "Cannot parse $type “${cause.text}”"
+            cause is KeyFormatException -> when (cause.type) {
+                KeyFormatException.Type.CONTENTS -> Strings.KEY_CONTENTS_ERROR
+                KeyFormatException.Type.LENGTH -> Strings.KEY_LENGTH_ERROR
+                else -> Strings.badConfigReason("invalid_key")
             }
-            else -> BCE_REASON_MAP[bce.reason] ?: "Invalid value"
+
+            cause is ParseException -> {
+                val type = when (cause.parsingClass) {
+                    InetAddress::class.java -> Strings.PARSE_ERROR_INET_ADDRESS
+                    InetEndpoint::class.java -> Strings.PARSE_ERROR_INET_ENDPOINT
+                    InetNetwork::class.java -> Strings.PARSE_ERROR_INET_NETWORK
+                    Int::class.java, Integer::class.java -> Strings.PARSE_ERROR_INTEGER
+                    else -> Strings.PARSE_ERROR_GENERIC
+                }
+                Strings.parseErrorReason(type, cause.text.toString())
+            }
+
+            else -> Strings.badConfigReason(bce.reason.name.lowercase())
         }
     }
 

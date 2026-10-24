@@ -101,7 +101,7 @@ object TunnelImporter {
 
     /** Decode the QR code contained in an image file. */
     fun decodeQrImage(file: File): String {
-        val image = ImageIO.read(file) ?: throw IllegalArgumentException("Unsupported image format")
+        val image = ImageIO.read(file) ?: throw IllegalArgumentException(Strings.UNSUPPORTED_IMAGE)
         val pixels = IntArray(image.width * image.height)
         image.getRGB(0, 0, image.width, image.height, pixels, 0, image.width)
         val source = RGBLuminanceSource(image.width, image.height, pixels)
@@ -119,9 +119,9 @@ object TunnelImporter {
         for (throwable in throwables) AppLog.w("Import", "Import failed: ${ErrorMessages[throwable]}", throwable)
         if (tunnels.isNotEmpty()) AppLog.i("Import", "Imported ${tunnels.joinToString { it.name }}")
         var message = ""
-        for (throwable in throwables) message = Strings.IMPORT_ERROR.format(ErrorMessages[throwable])
+        for (throwable in throwables) message = Strings.importError(ErrorMessages[throwable])
         if (tunnels.size == 1 && throwables.isEmpty())
-            message = Strings.IMPORT_SUCCESS.format(tunnels[0].name)
+            message = Strings.importSuccess(tunnels[0].name)
         else if (tunnels.isEmpty() && throwables.size == 1)
         else if (throwables.isEmpty())
             message = Strings.importTotalSuccess(tunnels.size)
