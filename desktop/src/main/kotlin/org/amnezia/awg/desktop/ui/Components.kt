@@ -4,7 +4,13 @@
  */
 package org.amnezia.awg.desktop.ui
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -162,4 +168,16 @@ fun ActionRow(title: String, summary: String, enabled: Boolean = true, onClick: 
         Text(title, style = MaterialTheme.typography.bodyLarge)
         Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** Vertical scrollbar along the end edge of a scrolling [Column]. */
+@Composable
+fun BoxScope.VerticalScrollbarFor(state: ScrollState) {
+    VerticalScrollbar(rememberScrollbarAdapter(state), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(2.dp))
+}
+
+/** Vertical scrollbar along the end edge of a [androidx.compose.foundation.lazy.LazyColumn]. */
+@Composable
+fun BoxScope.VerticalScrollbarFor(state: LazyListState) {
+    VerticalScrollbar(rememberScrollbarAdapter(state), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(2.dp))
 }

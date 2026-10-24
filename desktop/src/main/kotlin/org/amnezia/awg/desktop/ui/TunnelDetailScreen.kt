@@ -101,24 +101,28 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
             }
             return@Scaffold
         }
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            tunnel.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            InterfaceCard(tunnel, cfg.getInterface(), onCopied)
-            if (tunnel.state == Tunnel.State.UP && !app.backend.hasPrivileges) {
-                OutlinedButton(onClick = {
-                    app.scope.launch {
-                        try {
-                            withContext(Dispatchers.IO) { app.backend.helper() }
-                        } catch (e: Throwable) {
-                            app.showSnackbar(ErrorMessages[e])
+        val scroll = rememberScrollState()
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(scroll).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                tunnel.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                InterfaceCard(tunnel, cfg.getInterface(), onCopied)
+                if (tunnel.state == Tunnel.State.UP && !app.backend.hasPrivileges) {
+                    OutlinedButton(onClick = {
+                        app.scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) { app.backend.helper() }
+                            } catch (e: Throwable) {
+                                app.showSnackbar(ErrorMessages[e])
+                            }
                         }
-                    }
-                }) { Text(Strings.SHOW_STATISTICS) }
+                    }) { Text(Strings.SHOW_STATISTICS) }
+                }
+                cfg.peers.forEach { PeerCard(tunnel, it, onCopied) }
             }
-            cfg.peers.forEach { PeerCard(tunnel, it, onCopied) }
+            VerticalScrollbarFor(scroll)
         }
     }
 

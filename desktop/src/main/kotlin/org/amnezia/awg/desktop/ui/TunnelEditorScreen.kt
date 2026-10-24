@@ -146,18 +146,22 @@ fun TunnelEditorScreen(app: AppState, tunnel: ObservableTunnel?) {
             Box(Modifier.fillMaxSize().padding(padding)) { CircularProgressIndicator(Modifier.align(Alignment.Center)) }
             return@Scaffold
         }
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            InterfaceEditor(current.iface, name, onNameChange = { name = it })
-            current.peers.forEachIndexed { index, peer ->
-                PeerEditor(peer, index) { peer.unbind() }
+        val scroll = rememberScrollState()
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(scroll).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                InterfaceEditor(current.iface, name, onNameChange = { name = it })
+                current.peers.forEachIndexed { index, peer ->
+                    PeerEditor(peer, index) { peer.unbind() }
+                }
+                OutlinedButton(onClick = { current.addPeer() }) {
+                    Icon(Icons.Default.Add, null)
+                    Text(Strings.ADD_PEER, Modifier.padding(start = 8.dp))
+                }
             }
-            OutlinedButton(onClick = { current.addPeer() }) {
-                Icon(Icons.Default.Add, null)
-                Text(Strings.ADD_PEER, Modifier.padding(start = 8.dp))
-            }
+            VerticalScrollbarFor(scroll)
         }
     }
 }

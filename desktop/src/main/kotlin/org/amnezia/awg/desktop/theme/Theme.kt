@@ -1,16 +1,21 @@
 package org.amnezia.awg.desktop.theme
 
+import androidx.compose.foundation.LocalScrollbarStyle
+import androidx.compose.foundation.ScrollbarStyle
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.dp
 
 // WireGuard brand colors
 private val WireGuardBlue = Color(0xFF8839BF)
@@ -134,8 +139,15 @@ fun AmneziaContent(
     content: @Composable () -> Unit,
 ) {
     val scheme = remember(colors, darkTheme) { colorScheme(colors, darkTheme) }
-    MaterialTheme(
-        colorScheme = scheme,
-        content = content,
-    )
+    MaterialTheme(colorScheme = scheme) {
+        val scrollbarStyle = ScrollbarStyle(
+            minimalHeight = 32.dp,
+            thickness = 8.dp,
+            shape = RoundedCornerShape(4.dp),
+            hoverDurationMillis = 200,
+            unhoverColor = scheme.onSurface.copy(alpha = 0.25f),
+            hoverColor = scheme.onSurface.copy(alpha = 0.55f),
+        )
+        CompositionLocalProvider(LocalScrollbarStyle provides scrollbarStyle, content = content)
+    }
 }

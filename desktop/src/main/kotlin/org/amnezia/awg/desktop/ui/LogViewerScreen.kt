@@ -92,12 +92,15 @@ fun LogViewerScreen(app: AppState) {
                     Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                else -> SelectionContainer {
-                    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), state = listState) {
-                        items(current) {
-                            Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                else -> {
+                    SelectionContainer {
+                        LazyColumn(Modifier.fillMaxSize().padding(start = 12.dp, end = 16.dp), state = listState) {
+                            items(current) {
+                                Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
+                    VerticalScrollbarFor(listState)
                 }
             }
         }

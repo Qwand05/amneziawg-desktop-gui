@@ -40,6 +40,8 @@ class ScreensRenderTest {
         AppPaths.configDir.listFiles()?.forEach { it.delete() }
         File(AppPaths.configDir, "sample.conf").writeText(SAMPLE)
         File(AppPaths.configDir, "office2.conf").writeText(SAMPLE)
+        // Enough tunnels for the list to scroll; they sort after the two above.
+        for (i in 1..12) File(AppPaths.configDir, "tunnel$i.conf").writeText(SAMPLE)
 
         val app = onEdt { AppState().also { it.start() } }
         waitUntil { onEdt { app.tunnelManager.loaded } }

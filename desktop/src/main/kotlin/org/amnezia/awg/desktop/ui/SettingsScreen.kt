@@ -4,6 +4,7 @@
  */
 package org.amnezia.awg.desktop.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -79,56 +80,60 @@ fun SettingsScreen(app: AppState) {
             TopAppBar(title = { Text(Strings.SETTINGS) }, navigationIcon = { BackButton { app.popBackStack() } })
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-            ActionRow(Strings.versionTitle(BuildInfo.version), moduleVersion) {}
-            ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
-            ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
-            ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}
-            HorizontalDivider()
-            SwitchRow(
-                Strings.RESTORE_ON_BOOT_TITLE,
-                if (restoreOnStart) Strings.RESTORE_ON_BOOT_SUMMARY_ON else Strings.RESTORE_ON_BOOT_SUMMARY_OFF,
-                restoreOnStart,
-            ) {
-                restoreOnStart = it
-                prefs.putBoolean(Prefs.KEY_RESTORE_ON_BOOT, it)
+        val scroll = rememberScrollState()
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                ActionRow(Strings.versionTitle(BuildInfo.version), moduleVersion) {}
+                ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
+                ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
+                ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}
+                HorizontalDivider()
+                SwitchRow(
+                    Strings.RESTORE_ON_BOOT_TITLE,
+                    if (restoreOnStart) Strings.RESTORE_ON_BOOT_SUMMARY_ON else Strings.RESTORE_ON_BOOT_SUMMARY_OFF,
+                    restoreOnStart,
+                ) {
+                    restoreOnStart = it
+                    prefs.putBoolean(Prefs.KEY_RESTORE_ON_BOOT, it)
+                }
+                SwitchRow(
+                    Strings.MULTIPLE_TUNNELS_TITLE,
+                    if (multipleTunnels) Strings.MULTIPLE_TUNNELS_SUMMARY_ON else Strings.MULTIPLE_TUNNELS_SUMMARY_OFF,
+                    multipleTunnels,
+                ) {
+                    multipleTunnels = it
+                    app.backend.multipleTunnels = it
+                    prefs.putBoolean(Prefs.KEY_MULTIPLE_TUNNELS, it)
+                }
+                SwitchRow(
+                    Strings.CLOSE_TO_TRAY_TITLE,
+                    when {
+                        !app.trayAvailable -> Strings.CLOSE_TO_TRAY_UNAVAILABLE
+                        app.closeToTray -> Strings.CLOSE_TO_TRAY_SUMMARY_ON
+                        else -> Strings.CLOSE_TO_TRAY_SUMMARY_OFF
+                    },
+                    app.closeToTray && app.trayAvailable,
+                    enabled = app.trayAvailable,
+                ) { app.updateCloseToTray(it) }
+                SwitchRow(
+                    Strings.DARK_THEME_TITLE,
+                    if (app.darkTheme) Strings.DARK_THEME_SUMMARY_ON else Strings.DARK_THEME_SUMMARY_OFF,
+                    app.darkTheme,
+                ) { app.updateDarkTheme(it) }
+                ColorRow(Strings.ACCENT_COLOR_TITLE, app.themeColors.accent) {
+                    app.updateThemeColors(app.themeColors.copy(accent = it))
+                }
+                ColorRow(Strings.STATUS_COLOR_TITLE, app.themeColors.status) {
+                    app.updateThemeColors(app.themeColors.copy(status = it))
+                }
+                ActionRow(Strings.RESET_COLORS_TITLE, Strings.RESET_COLORS_SUMMARY, enabled = !app.themeColors.isDefault) {
+                    app.updateThemeColors(ThemeColors())
+                }
+                HorizontalDivider()
+                ActionRow(Strings.ZIP_EXPORT_TITLE, Strings.ZIP_EXPORT_SUMMARY, enabled = !exporting, onClick = ::exportZip)
+                ActionRow(Strings.LOG_VIEWER_PREF_TITLE, Strings.LOG_VIEWER_PREF_SUMMARY) { app.navigate(Screen.LogViewer) }
             }
-            SwitchRow(
-                Strings.MULTIPLE_TUNNELS_TITLE,
-                if (multipleTunnels) Strings.MULTIPLE_TUNNELS_SUMMARY_ON else Strings.MULTIPLE_TUNNELS_SUMMARY_OFF,
-                multipleTunnels,
-            ) {
-                multipleTunnels = it
-                app.backend.multipleTunnels = it
-                prefs.putBoolean(Prefs.KEY_MULTIPLE_TUNNELS, it)
-            }
-            SwitchRow(
-                Strings.CLOSE_TO_TRAY_TITLE,
-                when {
-                    !app.trayAvailable -> Strings.CLOSE_TO_TRAY_UNAVAILABLE
-                    app.closeToTray -> Strings.CLOSE_TO_TRAY_SUMMARY_ON
-                    else -> Strings.CLOSE_TO_TRAY_SUMMARY_OFF
-                },
-                app.closeToTray && app.trayAvailable,
-                enabled = app.trayAvailable,
-            ) { app.updateCloseToTray(it) }
-            SwitchRow(
-                Strings.DARK_THEME_TITLE,
-                if (app.darkTheme) Strings.DARK_THEME_SUMMARY_ON else Strings.DARK_THEME_SUMMARY_OFF,
-                app.darkTheme,
-            ) { app.updateDarkTheme(it) }
-            ColorRow(Strings.ACCENT_COLOR_TITLE, app.themeColors.accent) {
-                app.updateThemeColors(app.themeColors.copy(accent = it))
-            }
-            ColorRow(Strings.STATUS_COLOR_TITLE, app.themeColors.status) {
-                app.updateThemeColors(app.themeColors.copy(status = it))
-            }
-            ActionRow(Strings.RESET_COLORS_TITLE, Strings.RESET_COLORS_SUMMARY, enabled = !app.themeColors.isDefault) {
-                app.updateThemeColors(ThemeColors())
-            }
-            HorizontalDivider()
-            ActionRow(Strings.ZIP_EXPORT_TITLE, Strings.ZIP_EXPORT_SUMMARY, enabled = !exporting, onClick = ::exportZip)
-            ActionRow(Strings.LOG_VIEWER_PREF_TITLE, Strings.LOG_VIEWER_PREF_SUMMARY) { app.navigate(Screen.LogViewer) }
+            VerticalScrollbarFor(scroll)
         }
     }
 }

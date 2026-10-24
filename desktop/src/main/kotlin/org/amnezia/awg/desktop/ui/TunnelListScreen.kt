@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -111,6 +112,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
     var qrCode by remember { mutableStateOf<Pair<ObservableTunnel, Config>?>(null) }
     // Whether Ctrl was held on the last press, so that Ctrl+click selects.
     var ctrlClick by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     var addMenu by remember { mutableStateOf(false) }
     // Config text waiting for a name (QR code / clipboard import).
     var pendingConfig by remember { mutableStateOf<Config?>(null) }
@@ -231,7 +233,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                else -> LazyColumn(Modifier.fillMaxSize()) {
+                else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     items(manager.tunnels, key = { it }) { tunnel ->
                         val isSelected = tunnel in selection
                         fun toggleSelection() {
@@ -300,6 +302,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                     }
                 }
             }
+            if (manager.loaded && manager.tunnels.isNotEmpty()) VerticalScrollbarFor(listState)
         }
     }
 
