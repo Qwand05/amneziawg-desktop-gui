@@ -68,7 +68,7 @@ projects (an Ubuntu PPA is available).
 ## Building and running
 
 ```bash
-git clone --recurse-submodules https://github.com/amnezia-vpn/amneziawg-android
+git clone --recurse-submodules https://github.com/Qwand05/amneziawg-linux-gui
 cd amneziawg-android
 ```
 
