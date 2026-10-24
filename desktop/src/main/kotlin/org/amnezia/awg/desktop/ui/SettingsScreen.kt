@@ -1,0 +1,133 @@
+/*
+ * Copyright © 2017-2023 WireGuard LLC. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package org.amnezia.awg.desktop.ui
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.amnezia.awg.desktop.model.AppState
+import org.amnezia.awg.desktop.model.Screen
+import org.amnezia.awg.desktop.theme.ThemeColors
+import org.amnezia.awg.desktop.util.AppPaths
+import org.amnezia.awg.desktop.util.ErrorMessages
+import org.amnezia.awg.desktop.util.FileDialogs
+import org.amnezia.awg.desktop.util.Prefs
+import org.amnezia.awg.desktop.util.Strings
+
+/** Port of `SettingsActivity`'s preference screen. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(app: AppState) {
+    val prefs = app.prefs
+    var moduleVersion by remember { mutableStateOf(Strings.versionSummaryChecking(Strings.TYPE_NAME_KERNEL_MODULE)) }
+    var toolsVersion by remember { mutableStateOf("") }
+    var restoreOnStart by remember { mutableStateOf(prefs.getBoolean(Prefs.KEY_RESTORE_ON_BOOT, false)) }
+    var multipleTunnels by remember { mutableStateOf(app.backend.multipleTunnels) }
+    var exporting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        moduleVersion = try {
+            Strings.VERSION_SUMMARY.format(Strings.TYPE_NAME_KERNEL_MODULE, withContext(Dispatchers.IO) { app.backend.getVersion() })
+        } catch (_: Throwable) {
+            Strings.versionSummaryUnknown(Strings.TYPE_NAME_KERNEL_MODULE)
+        }
+        toolsVersion = try {
+            withContext(Dispatchers.IO) { app.backend.getToolsVersion() }
+        } catch (e: Throwable) {
+            ErrorMessages[e]
+        }
+    }
+
+    fun exportZip() {
+        val target = FileDialogs.saveFile(Strings.ZIP_EXPORT_TITLE, "amneziawg-export.zip") ?: return
+        exporting = true
+        app.scope.launch {
+            try {
+                val configs = app.tunnelManager.tunnels.toList().map { it to it.getConfigAsync() }
+                withContext(Dispatchers.IO) { FileDialogs.exportZip(configs, target) }
+                app.showSnackbar(Strings.zipExportSuccess(target.absolutePath))
+            } catch (e: Throwable) {
+                app.showSnackbar(Strings.ZIP_EXPORT_ERROR.format(ErrorMessages[e]))
+            } finally {
+                exporting = false
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text(Strings.SETTINGS) }, navigationIcon = { BackButton { app.popBackStack() } })
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            ActionRow(Strings.versionTitle(Strings.APP_VERSION), moduleVersion) {}
+            ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
+            ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
+            ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}
+            HorizontalDivider()
+            SwitchRow(
+                Strings.RESTORE_ON_BOOT_TITLE,
+                if (restoreOnStart) Strings.RESTORE_ON_BOOT_SUMMARY_ON else Strings.RESTORE_ON_BOOT_SUMMARY_OFF,
+                restoreOnStart,
+            ) {
+                restoreOnStart = it
+                prefs.putBoolean(Prefs.KEY_RESTORE_ON_BOOT, it)
+            }
+            SwitchRow(
+                Strings.MULTIPLE_TUNNELS_TITLE,
+                if (multipleTunnels) Strings.MULTIPLE_TUNNELS_SUMMARY_ON else Strings.MULTIPLE_TUNNELS_SUMMARY_OFF,
+                multipleTunnels,
+            ) {
+                multipleTunnels = it
+                app.backend.multipleTunnels = it
+                prefs.putBoolean(Prefs.KEY_MULTIPLE_TUNNELS, it)
+            }
+            SwitchRow(
+                Strings.CLOSE_TO_TRAY_TITLE,
+                when {
+                    !app.trayAvailable -> Strings.CLOSE_TO_TRAY_UNAVAILABLE
+                    app.closeToTray -> Strings.CLOSE_TO_TRAY_SUMMARY_ON
+                    else -> Strings.CLOSE_TO_TRAY_SUMMARY_OFF
+                },
+                app.closeToTray && app.trayAvailable,
+                enabled = app.trayAvailable,
+            ) { app.updateCloseToTray(it) }
+            SwitchRow(
+                Strings.DARK_THEME_TITLE,
+                if (app.darkTheme) Strings.DARK_THEME_SUMMARY_ON else Strings.DARK_THEME_SUMMARY_OFF,
+                app.darkTheme,
+            ) { app.updateDarkTheme(it) }
+            ColorRow(Strings.ACCENT_COLOR_TITLE, app.themeColors.accent) {
+                app.updateThemeColors(app.themeColors.copy(accent = it))
+            }
+            ColorRow(Strings.STATUS_COLOR_TITLE, app.themeColors.status) {
+                app.updateThemeColors(app.themeColors.copy(status = it))
+            }
+            ActionRow(Strings.RESET_COLORS_TITLE, Strings.RESET_COLORS_SUMMARY, enabled = !app.themeColors.isDefault) {
+                app.updateThemeColors(ThemeColors())
+            }
+            HorizontalDivider()
+            ActionRow(Strings.ZIP_EXPORT_TITLE, Strings.ZIP_EXPORT_SUMMARY, enabled = !exporting, onClick = ::exportZip)
+            ActionRow(Strings.LOG_VIEWER_PREF_TITLE, Strings.LOG_VIEWER_PREF_SUMMARY) { app.navigate(Screen.LogViewer) }
+        }
+    }
+}

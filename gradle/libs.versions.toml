@@ -1,6 +1,10 @@
 [versions]
 agp = "8.13.0"
 kotlin = "2.2.20"
+compose-multiplatform = "1.9.3"
+coroutines = "1.10.2"
+zxing = "3.5.3"
+dbus-java = "5.2.2"
 
 [libraries]
 androidx-activity-ktx = "androidx.activity:activity-ktx:1.8.2"
@@ -20,10 +24,17 @@ google-material = "com.google.android.material:material:1.11.0"
 jsr305 = "com.google.code.findbugs:jsr305:3.0.2"
 junit = "junit:junit:4.13.2"
 kotlinx-coroutines-android = "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
 zxing-android-embedded = "com.journeyapps:zxing-android-embedded:4.3.0"
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbus-java" }
+dbus-java-transport-unixsocket = { module = "com.github.hypfvieh:dbus-java-transport-native-unixsocket", version.ref = "dbus-java" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }

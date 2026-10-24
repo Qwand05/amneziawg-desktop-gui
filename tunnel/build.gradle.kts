@@ -54,6 +54,7 @@ android {
 }
 
 dependencies {
+    api(project(":core"))
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.collection)
     compileOnly(libs.jsr305)

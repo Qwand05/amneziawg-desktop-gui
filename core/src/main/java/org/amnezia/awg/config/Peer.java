@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import androidx.annotation.Nullable;
 
@@ -30,6 +31,8 @@ import androidx.annotation.Nullable;
  */
 @NonNullForAll
 public final class Peer {
+    private static final Pattern PERSISTENT_KEEPALIVE_PATTERN = Pattern.compile("\\d+(-\\d+)?");
+
     private final Set<InetNetwork> allowedIps;
     private final Optional<InetEndpoint> endpoint;
     private final Optional<String> persistentKeepalive;
@@ -253,7 +256,14 @@ public final class Peer {
 
         public Builder parsePersistentKeepalive(final String persistentKeepalive)
                 throws BadConfigException {
-            return setPersistentKeepalive(persistentKeepalive);
+            final String trimmed = persistentKeepalive.trim();
+            // Empty or "off" disables the keepalive; otherwise the value must be a number or
+            // a range of numbers, so that garbage never reaches the wg/wg-quick configuration.
+            if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase("off")
+                    && !PERSISTENT_KEEPALIVE_PATTERN.matcher(trimmed).matches())
+                throw new BadConfigException(Section.PEER, Location.PERSISTENT_KEEPALIVE,
+                        trimmed, new NumberFormatException(trimmed));
+            return setPersistentKeepalive(trimmed);
         }
 
         public Builder parsePreSharedKey(final String preSharedKey) throws BadConfigException {

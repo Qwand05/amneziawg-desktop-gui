@@ -23,8 +23,10 @@ plugins {
 
 rootProject.name = "amneziawg-android"
 
+include(":core")
 include(":tunnel")
 include(":ui")
+include(":desktop")
 
 configure<SettingsExtension> {
     buildToolsVersion = "36.0.0"
