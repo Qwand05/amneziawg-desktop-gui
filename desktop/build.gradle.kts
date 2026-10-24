@@ -86,7 +86,8 @@ compose.desktop {
 }
 
 tasks.test {
-    // Never let tests touch the real ~/.config/amnezia-awg.
+    // Never let tests touch the real ~/.config/amnezia-awg or the real log.
     environment("XDG_CONFIG_HOME", layout.buildDirectory.dir("test-config").get().asFile.absolutePath)
+    environment("XDG_STATE_HOME", layout.buildDirectory.dir("test-state").get().asFile.absolutePath)
     systemProperty("java.awt.headless", "true")
 }

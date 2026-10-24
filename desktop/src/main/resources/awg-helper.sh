@@ -24,7 +24,7 @@
 #   latest <name>              awg show <name> latest-handshakes
 #   up <conf-path>             awg-quick up <conf-path> (see "Routes" below)
 #   down <conf-path|name>      awg-quick down <conf-path|name>
-#   journal <lines>            recent awg/awg-quick journal entries
+#   journal <lines>            AmneziaWG kernel and awg-quick journal entries
 #   quit                       terminate the helper
 
 #
@@ -263,8 +263,14 @@ while IFS=$'\t' read -r -a req; do
             lines="${req[2]:-200}"
             case "$lines" in ''|*[!0-9]*) lines=200 ;; esac
             [ "$lines" -gt 5000 ] && lines=5000
-            capture journalctl --no-pager -o short-iso -n "$lines" -t awg-quick -t awg -t amnezia
-            if [ "$RC" -eq 0 ]; then ok "$id" "$OUT"; else err "$id" "journal" "$OUT"; fi
+            # Same sources as the GUI's unprivileged query; --grep exits
+            # non-zero when nothing matches, so failures are not errors here.
+            OUT=$( {
+                journalctl --no-pager -q -o short-iso -n "$lines" -k --grep amneziawg
+                journalctl --no-pager -q -o short-iso -n "$lines" -t awg-quick -t awg
+                journalctl --no-pager -q -o short-iso -n "$lines" -u 'awg-quick@*'
+            } 2>/dev/null | grep '^[0-9]' | sort | tail -n "$lines")
+            ok "$id" "$OUT"
             ;;
 
         quit)

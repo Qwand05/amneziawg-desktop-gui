@@ -202,6 +202,11 @@ object Strings {
     fun logExportSuccess(path: String) = "Saved to “$path”"
     const val LOG_EXPORT_ERROR = "Unable to export log: %s"
     const val LOG_EMPTY = "No log entries yet"
+    const val LOG_TAB_APP = "Application"
+    const val LOG_TAB_SYSTEM = "System journal"
+    fun logFileHint(path: String) = "Also saved to $path"
+    const val SYSTEM_JOURNAL_HINT = "AmneziaWG kernel module and awg-quick service entries of the system journal"
+    const val SYSTEM_JOURNAL_EMPTY = "No AmneziaWG entries in the system journal"
 
     // Toggle errors
     const val ERROR_UP = "Error bringing up tunnel: %s"

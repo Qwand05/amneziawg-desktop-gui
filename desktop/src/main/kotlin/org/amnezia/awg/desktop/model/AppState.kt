@@ -20,6 +20,7 @@ import org.amnezia.awg.desktop.configStore.FileConfigStore
 import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.theme.parseHexColor
 import org.amnezia.awg.desktop.theme.toHex
+import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.AppPaths
 import org.amnezia.awg.desktop.util.ErrorMessages
 import org.amnezia.awg.desktop.util.Prefs
@@ -48,6 +49,7 @@ class AppState {
         multipleTunnels = prefs.getBoolean(Prefs.KEY_MULTIPLE_TUNNELS, false)
     }
     val tunnelManager = TunnelManager(FileConfigStore(AppPaths.configDir), backend, prefs) {
+        AppLog.e("TunnelManager", ErrorMessages[it], it)
         showSnackbar(ErrorMessages[it])
     }
 

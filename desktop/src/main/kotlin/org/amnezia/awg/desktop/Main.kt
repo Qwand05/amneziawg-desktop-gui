@@ -45,6 +45,8 @@ import org.amnezia.awg.desktop.tray.StatusNotifierTray
 import org.amnezia.awg.desktop.tray.TrayMenuEntry
 import org.amnezia.awg.desktop.tray.TrayState
 import org.amnezia.awg.desktop.ui.toggleTunnel
+import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.BuildInfo
 import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.AmneziaContent
@@ -65,13 +67,27 @@ private val TWO_PANE_MIN_WIDTH = 760.dp
  *  - `--hidden`: start in the tray without showing the window (for autostart).
  */
 fun main(args: Array<String>) {
+    // Crashes end up in the log file, which outlives the process.
+    Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+        AppLog.e("App", "Uncaught exception in thread ${thread.name}", e)
+    }
+    AppLog.i(
+        "App",
+        "AmneziaWG for Linux ${BuildInfo.version} starting; Java ${System.getProperty("java.version")}, " +
+            "${System.getProperty("os.name")} ${System.getProperty("os.version")}, " +
+            "desktop ${System.getenv("XDG_CURRENT_DESKTOP") ?: "unknown"} (${System.getenv("XDG_SESSION_TYPE") ?: "unknown"})",
+    )
+
     val windowVisible = mutableStateOf(true)
     val showWindow = { windowVisible.value = true }
 
     // A second launch only asks the running instance to show its window.
     val instance = when (val result = SingleInstance.acquire(showWindow)) {
         is SingleInstance.Result.Acquired -> result.instance
-        SingleInstance.Result.AlreadyRunning -> return
+        SingleInstance.Result.AlreadyRunning -> {
+            AppLog.i("App", "Already running; asked the running instance to show its window")
+            return
+        }
         SingleInstance.Result.NoBus -> null
     }
 
@@ -82,11 +98,20 @@ fun main(args: Array<String>) {
     // AWT's XEmbed tray is only a fallback for desktops without StatusNotifierItem support.
     val awtTray = sniTray == null && SystemTray.isSupported()
     app.trayAvailable = sniTray != null || awtTray
+    AppLog.i(
+        "App",
+        when {
+            sniTray != null -> "System tray: StatusNotifierItem"
+            awtTray -> "System tray: legacy XEmbed (AWT)"
+            else -> "System tray: none available"
+        },
+    )
     if ("--hidden" in args && app.trayAvailable) windowVisible.value = false
 
     application {
         val windowState = rememberWindowState(size = DpSize(960.dp, 720.dp))
         fun quit() {
+            AppLog.i("App", "Quitting")
             app.close()
             sniTray?.close()
             instance?.close()

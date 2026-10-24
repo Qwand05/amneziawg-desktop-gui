@@ -5,6 +5,11 @@
 package org.amnezia.awg.desktop.ui
 
 import androidx.compose.foundation.layout.Box
+import org.amnezia.awg.desktop.util.AppLog
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,32 +44,53 @@ import org.amnezia.awg.desktop.util.FileDialogs
 import org.amnezia.awg.desktop.util.Strings
 
 /**
- * Port of `LogViewerActivity`. Instead of logcat, it shows the `awg-quick`
- * entries of the systemd journal.
+ * Port of `LogViewerActivity`. The "Application" tab shows [AppLog] (what
+ * logcat shows on Android) and updates live; "System journal" shows the
+ * AmneziaWG kernel module and `awg-quick` service entries of the journal.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogViewerScreen(app: AppState) {
-    var lines by remember { mutableStateOf<List<String>?>(null) }
+    var tab by remember { mutableIntStateOf(0) }
+    val revision by AppLog.revision.collectAsState()
+    val appEntries = remember(revision) { AppLog.entries() }
+    var journal by remember { mutableStateOf<List<String>?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(reload) {
-        lines = try {
-            withContext(Dispatchers.IO) { app.backend.journal() }
-                .lines()
-                .filter { it.isNotBlank() && !it.startsWith("-- No entries --") }
+    LaunchedEffect(tab, reload) {
+        if (tab != 1) return@LaunchedEffect
+        journal = null
+        journal = try {
+            withContext(Dispatchers.IO) { app.backend.systemJournal() }.lines().filter { it.isNotBlank() }
         } catch (e: Throwable) {
             listOf(ErrorMessages[e])
         }
-        lines?.let { if (it.isNotEmpty()) listState.scrollToItem(it.lastIndex) }
+    }
+
+    // Lines of the visible tab: app entries keep their level for coloring.
+    val lines: List<Pair<AppLog.Level?, String>>? = when (tab) {
+        0 -> appEntries.map { it.level to it.format() }
+        else -> journal?.map { null to it }
+    }
+
+    // Follow the end of the log, like `tail -f`, unless the user scrolled up.
+    var followEnd by remember(tab) { mutableStateOf(true) }
+    LaunchedEffect(listState.canScrollForward) {
+        if (listState.canScrollForward && listState.isScrollInProgress) followEnd = false
+        if (!listState.canScrollForward) followEnd = true
+    }
+    LaunchedEffect(tab, lines?.size) {
+        val size = lines?.size ?: 0
+        if (size > 0 && followEnd) listState.scrollToItem(size - 1)
     }
 
     fun export() {
         val content = lines ?: return
-        val target = FileDialogs.saveFile(Strings.LOG_EXPORT_TITLE, "amneziawg-log.txt") ?: return
+        val name = if (tab == 0) "amneziawg-app-log.txt" else "amneziawg-system-journal.txt"
+        val target = FileDialogs.saveFile(Strings.LOG_EXPORT_TITLE, name) ?: return
         try {
-            target.writeText(content.joinToString("\n", postfix = "\n"))
+            target.writeText(content.joinToString("\n", postfix = "\n") { it.second })
             app.showSnackbar(Strings.logExportSuccess(target.absolutePath))
         } catch (e: Throwable) {
             app.showSnackbar(Strings.LOG_EXPORT_ERROR.format(ErrorMessages[e]))
@@ -73,34 +99,58 @@ fun LogViewerScreen(app: AppState) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(Strings.LOG_VIEWER_TITLE) },
-                navigationIcon = { BackButton { app.popBackStack() } },
-                actions = {
-                    TooltipIconButton(Icons.Default.Refresh, Strings.REFRESH) { reload++ }
-                    TooltipIconButton(Icons.Default.Save, Strings.LOG_EXPORT_TITLE, enabled = !lines.isNullOrEmpty(), onClick = ::export)
-                },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text(Strings.LOG_VIEWER_TITLE) },
+                    navigationIcon = { BackButton { app.popBackStack() } },
+                    actions = {
+                        if (tab == 1) TooltipIconButton(Icons.Default.Refresh, Strings.REFRESH) { reload++ }
+                        TooltipIconButton(Icons.Default.Save, Strings.LOG_EXPORT_TITLE, enabled = !lines.isNullOrEmpty(), onClick = ::export)
+                    },
+                )
+                PrimaryTabRow(selectedTabIndex = tab) {
+                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(Strings.LOG_TAB_APP) })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(Strings.LOG_TAB_SYSTEM) })
+                }
+            }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            val current = lines
-            when {
-                current == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                current.isEmpty() -> Text(
-                    Strings.LOG_EMPTY,
-                    Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                else -> {
-                    SelectionContainer {
-                        LazyColumn(Modifier.fillMaxSize().padding(start = 12.dp, end = 16.dp), state = listState) {
-                            items(current) {
-                                Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Text(
+                if (tab == 0) Strings.logFileHint(AppLog.file.absolutePath) else Strings.SYSTEM_JOURNAL_HINT,
+                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(Modifier.fillMaxSize()) {
+                when {
+                    lines == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    lines.isEmpty() -> Text(
+                        if (tab == 0) Strings.LOG_EMPTY else Strings.SYSTEM_JOURNAL_EMPTY,
+                        Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> {
+                        SelectionContainer {
+                            LazyColumn(Modifier.fillMaxSize().padding(start = 12.dp, end = 16.dp), state = listState) {
+                                items(lines) { (level, text) ->
+                                    Text(
+                                        text,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = when (level) {
+                                            AppLog.Level.ERROR -> MaterialTheme.colorScheme.error
+                                            AppLog.Level.WARN -> MaterialTheme.colorScheme.tertiary
+                                            AppLog.Level.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        },
+                                        modifier = Modifier.padding(vertical = 1.dp),
+                                    )
+                                }
                             }
                         }
+                        VerticalScrollbarFor(listState)
                     }
-                    VerticalScrollbarFor(listState)
                 }
             }
         }

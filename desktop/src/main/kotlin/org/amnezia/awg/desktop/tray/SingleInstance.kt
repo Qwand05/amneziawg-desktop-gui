@@ -10,6 +10,7 @@ import org.freedesktop.dbus.annotations.DBusInterfaceName
 import org.freedesktop.dbus.connections.impl.DBusConnection
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.interfaces.DBusInterface
+import org.amnezia.awg.desktop.util.AppLog
 import javax.swing.SwingUtilities
 
 @DBusInterfaceName("org.amnezia.awg.Desktop")
@@ -48,7 +49,7 @@ class SingleInstance private constructor(private val connection: DBusConnection)
                 return Result.NoBus
             } catch (e: LinkageError) {
                 // A JDK module missing from a trimmed runtime must not take the app down.
-                System.err.println("AmneziaWG: single-instance check unavailable: $e")
+                AppLog.w("SingleInstance", "Single-instance check unavailable: $e")
                 return Result.NoBus
             }
             return try {

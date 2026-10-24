@@ -79,6 +79,7 @@ import org.amnezia.awg.config.Config
 import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.ObservableTunnel
 import org.amnezia.awg.desktop.model.Screen
+import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.CameraDevice
 import org.amnezia.awg.desktop.util.Cameras
 import org.amnezia.awg.desktop.util.ErrorMessages
@@ -95,6 +96,7 @@ fun AppState.toggleTunnel(tunnel: ObservableTunnel, checked: Boolean) {
             tunnel.setStateAsync(Tunnel.State.of(checked))
         } catch (e: Throwable) {
             val error = ErrorMessages[e]
+            AppLog.e("Tunnels", "Switching ${tunnel.name} ${if (checked) "on" else "off"} failed: $error")
             showSnackbar((if (checked) Strings.ERROR_UP else Strings.ERROR_DOWN).format(error))
         }
     }

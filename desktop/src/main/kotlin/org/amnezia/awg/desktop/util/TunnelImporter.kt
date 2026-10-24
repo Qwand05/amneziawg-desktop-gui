@@ -116,6 +116,8 @@ object TunnelImporter {
     }
 
     fun importResultMessage(tunnels: List<ObservableTunnel>, throwables: Collection<Throwable>): String {
+        for (throwable in throwables) AppLog.w("Import", "Import failed: ${ErrorMessages[throwable]}", throwable)
+        if (tunnels.isNotEmpty()) AppLog.i("Import", "Imported ${tunnels.joinToString { it.name }}")
         var message = ""
         for (throwable in throwables) message = Strings.IMPORT_ERROR.format(ErrorMessages[throwable])
         if (tunnels.size == 1 && throwables.isEmpty())

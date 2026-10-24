@@ -39,7 +39,10 @@ with the AmneziaWG tools should work too.
   - dark theme;
   - custom accent and status colors;
   - close to tray.
-- **Log viewer** for the `awg-quick` entries of the system journal.
+- **Log viewer**:
+  - the app's own log, which records each connect and disconnect with the full `awg-quick` output,
+    errors and crashes, and is also saved to `~/.local/state/amnezia-awg/app.log`;
+  - AmneziaWG kernel module and `awg-quick` service entries of the system journal.
 - Asks for your password only when needed. Opening the app does not prompt (unless *Restore tunnels
   on application start* is on); switching a tunnel does, once per session.
 
@@ -225,7 +228,7 @@ for example ones started with `awg-quick up` from `/etc/amnezia/amneziawg/`:
 | No tray icon on GNOME | Install the *AppIndicator and KStatusNotifierItem Support* extension. When started from a terminal, the app prints `AmneziaWG: native tray unavailable, falling back: …` if it had to fall back to the legacy tray. |
 | "Scan from QR code" is greyed out | No usable camera was detected (`/dev/video*`), or `ffmpeg` is missing. The menu entry says which. You can still import a screenshot of the QR code with **Import from QR code image**. |
 | No internet after a tunnel failed to connect or the app was killed | Bring the tunnel down by hand: `sudo awg-quick down <name>`, or `sudo ip link delete <name>` if that fails. Rebooting also works. |
-| Need more details about a failure | Open **Settings → View application log**, or run `journalctl -t awg-quick`. Starting the app from a terminal shows its own errors. |
+| Need more details about a failure | Open **Settings → View application log**. The *Application* tab has the app's log, including the full `awg-quick` output of every connect and disconnect. The same log is in `~/.local/state/amnezia-awg/app.log` (the previous one in `app.log.1`), which also survives crashes. The *System journal* tab shows the kernel module's messages. |
 
 ## Project layout
 

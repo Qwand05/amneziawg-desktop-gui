@@ -22,6 +22,7 @@ import org.amnezia.awg.config.Config
 import org.amnezia.awg.desktop.backend.Backend
 import org.amnezia.awg.desktop.backend.Statistics
 import org.amnezia.awg.desktop.configStore.ConfigStore
+import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.Prefs
 import org.amnezia.awg.desktop.util.QuantityFormatter
 
@@ -65,6 +66,7 @@ class TunnelManager(
     }
 
     private fun onTunnelsLoaded(present: Iterable<String>, running: Collection<String>) {
+        AppLog.i(TAG, "Loaded ${present.count()} tunnel(s); running interfaces: ${running.sorted().joinToString().ifEmpty { "none" }}")
         val sorted = present.sortedWith(TunnelComparator)
         for (name in sorted) {
             tunnels.add(ObservableTunnel(this, name, null, Tunnel.State.of(running.contains(name))))
@@ -109,7 +111,10 @@ class TunnelManager(
         for (tunnel in tunnels.toList()) {
             if (tunnel.isBusy) continue
             val state = Tunnel.State.of(running.contains(tunnel.name))
-            if (state != tunnel.state) tunnel.onStateChanged(state)
+            if (state != tunnel.state) {
+                AppLog.i(TAG, "${tunnel.name} is now ${if (state == Tunnel.State.UP) "up" else "down"} (changed outside the app)")
+                tunnel.onStateChanged(state)
+            }
             if (state != Tunnel.State.UP) continue
             if (!backend.hasPrivileges) {
                 // Without root we cannot see handshakes; trust the interface.
@@ -147,6 +152,7 @@ class TunnelManager(
     suspend fun create(name: String, config: Config): ObservableTunnel = withContext(Dispatchers.Main) {
         requireNameAvailable(name)
         val saved = withContext(Dispatchers.IO) { configStore.create(name, config) }
+        AppLog.i(TAG, "Created tunnel $name")
         val tunnel = ObservableTunnel(this@TunnelManager, name, saved, Tunnel.State.DOWN)
         insertSorted(tunnel)
         tunnel
@@ -164,6 +170,7 @@ class TunnelManager(
             }
             try {
                 withContext(Dispatchers.IO) { configStore.delete(tunnel.name) }
+                AppLog.i(TAG, "Deleted tunnel ${tunnel.name}")
             } catch (e: Throwable) {
                 if (originalState == Tunnel.State.UP) {
                     withContext(Dispatchers.IO) { backend.setState(tunnel, Tunnel.State.UP, tunnel.config) }
@@ -190,6 +197,7 @@ class TunnelManager(
                 backend.setState(tunnel, tunnel.state, config)
                 configStore.save(tunnel.name, config)
             }
+            AppLog.i(TAG, "Saved the configuration of ${tunnel.name}")
             tunnel.onConfigChanged(saved)!!
         }
 
@@ -207,6 +215,7 @@ class TunnelManager(
                 withContext(Dispatchers.IO) { backend.setState(tunnel, Tunnel.State.DOWN, null) }
             }
             withContext(Dispatchers.IO) { configStore.rename(tunnel.name, name) }
+            AppLog.i(TAG, "Renamed tunnel ${tunnel.name} to $name")
             newName = tunnel.onNameChanged(name)
             if (originalState == Tunnel.State.UP) {
                 withContext(Dispatchers.IO) { backend.setState(tunnel, Tunnel.State.UP, tunnel.config) }
@@ -313,6 +322,7 @@ class TunnelManager(
     }
 
     private companion object {
+        const val TAG = "TunnelManager"
         const val POLL_INTERVAL_MILLIS = 2_000L
         const val HANDSHAKE_TIMEOUT_MILLIS = 180_000L
     }

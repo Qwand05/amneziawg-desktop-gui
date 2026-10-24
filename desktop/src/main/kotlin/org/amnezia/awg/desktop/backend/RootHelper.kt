@@ -4,6 +4,7 @@
  */
 package org.amnezia.awg.desktop.backend
 
+import org.amnezia.awg.desktop.util.AppLog
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -126,12 +127,14 @@ class RootHelper private constructor(
             }
         }
         // The helper exited: fail everything that is still in flight.
+        if (process.isAlive || pending.isNotEmpty()) AppLog.w(TAG, "The privileged helper exited")
         val error = IllegalStateException("The privileged helper exited unexpectedly")
         pending.values.forEach { it.completeExceptionally(error) }
         pending.clear()
     }
 
     companion object {
+        private const val TAG = "RootHelper"
         const val MODE_PKEXEC = "pkexec"
         const val MODE_DIRECT = "direct"
         const val MODE_SUDO = "sudo"
@@ -189,6 +192,7 @@ class RootHelper private constructor(
                 MODE_SUDO -> listOf("sudo", "-n", "/bin/bash", script.absolutePath)
                 else -> listOf("pkexec", "/bin/bash", script.absolutePath)
             }
+            AppLog.i(TAG, "Starting the privileged helper (${resolveMode()}): ${script.absolutePath}")
             val process = ProcessBuilder(command)
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start()
@@ -204,11 +208,13 @@ class RootHelper private constructor(
                 helper.exec("ping", timeoutSeconds = 300)
             } catch (e: Exception) {
                 helper.close()
+                AppLog.w(TAG, "Privileged helper did not start: authentication cancelled or failed", e)
                 throw RootHelperException(
                     "auth",
                     "Administrator authentication was cancelled or failed",
                 ).apply { initCause(e) }
             }
+            AppLog.i(TAG, "Privileged helper running")
             return helper
         }
     }

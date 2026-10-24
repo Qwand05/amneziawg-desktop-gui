@@ -14,7 +14,8 @@ import java.util.Properties
  * Filesystem locations used by the desktop application.
  *
  * Follows the XDG base directory specification: configurations and settings
- * live in `~/.config/amnezia-awg` unless `XDG_CONFIG_HOME` is set.
+ * live in `~/.config/amnezia-awg` unless `XDG_CONFIG_HOME` is set, the log in
+ * `~/.local/state/amnezia-awg` unless `XDG_STATE_HOME` is set.
  */
 object AppPaths {
     const val APP_DIR_NAME = "amnezia-awg"
@@ -26,6 +27,13 @@ object AppPaths {
     }
 
     val settingsFile: File get() = File(configDir, "settings.properties")
+
+    /** Logs and other state that may be lost: `$XDG_STATE_HOME/amnezia-awg`. */
+    val stateDir: File by lazy {
+        val base = System.getenv("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }
+            ?: File(System.getProperty("user.home"), ".local/state").absolutePath
+        File(base, APP_DIR_NAME).apply { mkdirs() }
+    }
 
     /** Directory holding exported archives and QR images by default. */
     val defaultExportDir: File

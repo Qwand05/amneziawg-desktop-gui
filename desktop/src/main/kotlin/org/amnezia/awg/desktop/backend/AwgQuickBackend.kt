@@ -7,6 +7,7 @@ package org.amnezia.awg.desktop.backend
 import org.amnezia.awg.backend.BackendException
 import org.amnezia.awg.backend.Tunnel
 import org.amnezia.awg.config.Config
+import org.amnezia.awg.desktop.util.AppLog
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -111,9 +112,11 @@ class AwgQuickBackend(private val configDir: File) : Backend {
             for (name in runningTunnelNames) {
                 if (name == tunnel.name || !configFile(name).isFile) continue
                 try {
+                    AppLog.i(TAG, "Taking $name down: only one tunnel may be up at a time")
                     down(name)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Keep going; the tunnel we care about still has to come up.
+                    AppLog.w(TAG, "Could not take $name down", e)
                 }
             }
         }
@@ -124,10 +127,16 @@ class AwgQuickBackend(private val configDir: File) : Backend {
             // is what the Android backend does as well.
             if (originalState == Tunnel.State.UP) down(tunnel.name)
             val file = writeConfig(tunnel.name, config)
+            AppLog.i(TAG, "Bringing ${tunnel.name} up")
             try {
-                helper().exec("up", file.absolutePath, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
+                val output = helper().exec("up", file.absolutePath, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
+                AppLog.i(TAG, "${tunnel.name} is up\n$output")
             } catch (e: RootHelperException) {
+                AppLog.e(TAG, "Bringing ${tunnel.name} up failed\n${e.message}")
                 throw BackendException(BackendException.Reason.AWG_QUICK_CONFIG_ERROR_CODE, e.message ?: e.code)
+            } catch (e: Exception) {
+                AppLog.e(TAG, "Bringing ${tunnel.name} up failed", e)
+                throw e
             }
         } else {
             down(tunnel.name)
@@ -139,8 +148,10 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     private fun down(name: String) {
         val file = configFile(name)
         val target = if (file.isFile) file.absolutePath else name
+        AppLog.i(TAG, "Taking $name down")
         try {
-            helper().exec("down", target, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
+            val output = helper().exec("down", target, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
+            AppLog.i(TAG, "$name is down\n$output")
         } catch (e: RootHelperException) {
             val message = e.message ?: ""
             // awg-quick already reports the interface as down when it was not
@@ -148,8 +159,15 @@ class AwgQuickBackend(private val configDir: File) : Backend {
             if (message.contains("is not a WireGuard interface", ignoreCase = true) ||
                 message.contains("is not configured", ignoreCase = true) ||
                 message.contains("No such device", ignoreCase = true)
-            ) return
+            ) {
+                AppLog.i(TAG, "$name was already down")
+                return
+            }
+            AppLog.e(TAG, "Taking $name down failed\n$message")
             throw BackendException(BackendException.Reason.AWG_QUICK_CONFIG_ERROR_CODE, message)
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Taking $name down failed", e)
+            throw e
         }
     }
 
@@ -170,21 +188,38 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     private fun configFile(name: String): File = File(configDir, "$name.conf")
 
     /**
-     * Recent `awg-quick`/`awg` log lines from the system journal. Tried
-     * unprivileged first (works for members of `adm`/`systemd-journal`).
+     * AmneziaWG related entries of the system journal: kernel module messages
+     * and `awg-quick` output from systemd units (`awg-quick@<name>`), oldest
+     * first. The app's own `awg-quick` runs are in [AppLog] instead.
+     *
+     * Read unprivileged first, which works for members of `adm` or
+     * `systemd-journal`; otherwise through the helper if it is running.
      */
-    fun journal(lines: Int = 500): String {
-        val direct = try {
-            runUnprivileged(
-                "journalctl", "--no-pager", "-o", "short-iso", "-n", lines.toString(),
-                "-t", "awg-quick", "-t", "awg", "-t", "amnezia",
-            )
-        } catch (_: Exception) {
-            ""
+    fun systemJournal(lines: Int = 500): String {
+        val queries = listOf(
+            listOf("-k", "--grep", "amneziawg"),
+            listOf("-t", "awg-quick", "-t", "awg"),
+            listOf("-u", "awg-quick@*"),
+        )
+        val entries = sortedSetOf<String>()
+        var denied = false
+        for (query in queries) {
+            val output = try {
+                runUnprivileged("journalctl", "--no-pager", "-q", "-o", "short-iso", "-n", lines.toString(), *query.toTypedArray())
+            } catch (e: Exception) {
+                // journalctl exits non-zero when --grep finds nothing.
+                e.message.orEmpty()
+            }
+            for (line in output.lines()) {
+                when {
+                    line.isBlank() || line.startsWith("-- ") -> {}
+                    "insufficient permissions" in line || "not seeing messages from other users" in line -> denied = true
+                    line.first().isDigit() -> entries += line
+                }
+            }
         }
-        if (direct.isNotBlank() && !direct.startsWith("-- No entries --")) return direct
-        if (!hasPrivileges) return direct
-        return helper().exec("journal", lines.toString())
+        if (denied && entries.isEmpty() && hasPrivileges) return helper().exec("journal", lines.toString())
+        return entries.toList().takeLast(lines).joinToString("\n")
     }
 
     fun close() {
@@ -193,6 +228,8 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     }
 
     companion object {
+        private const val TAG = "Backend"
+
         /**
          * Split tunnels take well under a second (see awg-helper.sh), but
          * awg-quick itself can need minutes to parse a full-tunnel config

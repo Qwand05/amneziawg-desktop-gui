@@ -101,6 +101,10 @@ class ScreensRenderTest {
         onEdt { app.updateThemeColors(ThemeColors(accent = Color(0xFF1E88E5), status = Color(0xFFEF6C00))) }
         shot("settings-custom-colors")
         onEdt { app.updateThemeColors(ThemeColors()) }
+        onEdt { app.navigate(Screen.LogViewer) }
+        shot("log-app")
+        // Second tab of the tab row under the 64dp top bar.
+        shot("log-system", clicks = listOf(Click(Offset(720f, 88f))))
 
         onEdt { app.close() }
         assertTrue(File(out, "settings.png").length() > 0)
