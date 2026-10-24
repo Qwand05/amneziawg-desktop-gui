@@ -4,28 +4,24 @@
  */
 package org.amnezia.awg.desktop.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,12 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -54,14 +45,8 @@ import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.ObservableTunnel
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.util.ErrorMessages
-import org.amnezia.awg.desktop.util.FileDialogs
 import org.amnezia.awg.desktop.util.QuantityFormatter
 import org.amnezia.awg.desktop.util.Strings
-import java.awt.image.BufferedImage
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.StandardOpenOption
-import java.nio.file.attribute.PosixFilePermissions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +85,7 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
                 actions = {
                     TooltipIconButton(Icons.Default.QrCode2, Strings.SHOW_QR_CODE, enabled = config != null) { showQr = true }
                     TooltipIconButton(Icons.Default.Save, Strings.EXPORT_CONFIG, enabled = config != null) {
-                        exportConfig(app, tunnel, config!!)
+                        app.exportConfig(tunnel, config!!)
                     }
                     TooltipIconButton(Icons.Default.Edit, Strings.EDIT) { app.navigate(Screen.TunnelEditor(tunnel)) }
                     TunnelToggle(tunnel) { app.toggleTunnel(tunnel, it) }
@@ -138,13 +123,7 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
     }
 
     if (showQr && config != null) {
-        val image = remember(config) { qrCode(config!!.toAwgQuickString()) }
-        AlertDialog(
-            onDismissRequest = { showQr = false },
-            title = { Text(tunnel.name) },
-            text = { Image(image, contentDescription = Strings.SHOW_QR_CODE, modifier = Modifier.size(360.dp)) },
-            confirmButton = { TextButton(onClick = { showQr = false }) { Text(Strings.CLOSE) } },
-        )
+        QrCodeDialog(tunnel.name, config!!) { showQr = false }
     }
 }
 
@@ -213,31 +192,4 @@ private fun PeerCard(tunnel: ObservableTunnel, peer: Peer, onCopied: (String) ->
             LabeledValue(Strings.LATEST_HANDSHAKE, Strings.latestHandshakeAgo(QuantityFormatter.formatEpochAgo(stats.latestHandshakeEpochMillis)))
         }
     }
-}
-
-private fun exportConfig(app: AppState, tunnel: ObservableTunnel, config: Config) {
-    val target = FileDialogs.saveFile(Strings.EXPORT_CONFIG, "${tunnel.name}.conf") ?: return
-    try {
-        val path = target.toPath()
-        if (!Files.exists(path))
-            Files.createFile(path, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))
-        Files.write(
-            path,
-            config.toAwgQuickString().toByteArray(StandardCharsets.UTF_8),
-            StandardOpenOption.TRUNCATE_EXISTING,
-        )
-        app.showSnackbar(Strings.zipExportSuccess(target.absolutePath))
-    } catch (e: Throwable) {
-        app.showSnackbar(Strings.ZIP_EXPORT_ERROR.format(ErrorMessages[e]))
-    }
-}
-
-private fun qrCode(text: String): ImageBitmap {
-    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, mapOf(EncodeHintType.MARGIN to 2))
-    val scale = 6
-    val image = BufferedImage(matrix.width * scale, matrix.height * scale, BufferedImage.TYPE_INT_RGB)
-    for (y in 0 until image.height) for (x in 0 until image.width) {
-        image.setRGB(x, y, if (matrix.get(x / scale, y / scale)) 0x000000 else 0xFFFFFF)
-    }
-    return image.toComposeImageBitmap()
 }

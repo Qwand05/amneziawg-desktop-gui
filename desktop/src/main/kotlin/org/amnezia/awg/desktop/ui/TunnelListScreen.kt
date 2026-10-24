@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +50,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.RemoveDone
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -87,7 +104,13 @@ fun AppState.toggleTunnel(tunnel: ObservableTunnel, checked: Boolean) {
 fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
     val manager = app.tunnelManager
     val selection = remember { mutableStateListOf<ObservableTunnel>() }
-    var confirmDelete by remember { mutableStateOf(false) }
+    // Tunnels awaiting delete confirmation (from the selection bar or a context menu).
+    var pendingDelete by remember { mutableStateOf<List<ObservableTunnel>?>(null) }
+    // Context menu: the tunnel it is for and where it was opened.
+    var contextMenu by remember { mutableStateOf<Pair<ObservableTunnel, Offset>?>(null) }
+    var qrCode by remember { mutableStateOf<Pair<ObservableTunnel, Config>?>(null) }
+    // Whether Ctrl was held on the last press, so that Ctrl+click selects.
+    var ctrlClick by remember { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
     // Config text waiting for a name (QR code / clipboard import).
     var pendingConfig by remember { mutableStateOf<Config?>(null) }
@@ -137,7 +160,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                         TooltipIconButton(Icons.Default.SelectAll, Strings.SELECT_ALL) {
                             selection.clear(); selection.addAll(manager.tunnels)
                         }
-                        TooltipIconButton(Icons.Default.Delete, Strings.DELETE) { confirmDelete = true }
+                        TooltipIconButton(Icons.Default.Delete, Strings.DELETE) { pendingDelete = selection.toList() }
                     } else {
                         TooltipIconButton(Icons.Default.Settings, Strings.SETTINGS) { app.navigate(Screen.Settings) }
                     }
@@ -224,15 +247,19 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                                         else -> MaterialTheme.colorScheme.surface
                                     }
                                 )
+                                .onPrimaryPress { ctrlClick = it }
+                                .onRightClick { contextMenu = tunnel to it }
                                 .combinedClickable(
-                                    onClick = { if (selecting) toggleSelection() else app.openTunnel(tunnel) },
+                                    onClick = {
+                                        if (selecting || ctrlClick) toggleSelection() else app.openTunnel(tunnel)
+                                    },
                                     onLongClick = { toggleSelection() },
                                 )
-                                .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            Checkbox(checked = isSelected, onCheckedChange = { toggleSelection() })
+                            StatusIndicator(tunnel, isSelected)
                             Column(Modifier.weight(1f)) {
                                 Text(tunnel.name, style = MaterialTheme.typography.titleMedium)
                                 tunnelStatusText(tunnel)?.let {
@@ -243,6 +270,31 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                                 }
                             }
                             TunnelToggle(tunnel) { app.toggleTunnel(tunnel, it) }
+
+                            contextMenu?.takeIf { it.first === tunnel }?.let { (_, position) ->
+                                val close = { contextMenu = null }
+                                if (isSelected && selection.size > 1) {
+                                    SelectionContextMenu(
+                                        position = position,
+                                        count = selection.size,
+                                        onDismiss = close,
+                                        onDelete = { close(); pendingDelete = selection.toList() },
+                                        onSelectAll = { close(); selection.clear(); selection.addAll(manager.tunnels) },
+                                        onClearSelection = { close(); selection.clear() },
+                                    )
+                                } else {
+                                    TunnelContextMenu(
+                                        app = app,
+                                        tunnel = tunnel,
+                                        position = position,
+                                        isSelected = isSelected,
+                                        onDismiss = close,
+                                        onToggleSelection = { close(); toggleSelection() },
+                                        onShowQrCode = { config -> close(); qrCode = tunnel to config },
+                                        onDelete = { close(); pendingDelete = listOf(tunnel) },
+                                    )
+                                }
+                            }
                         }
                         HorizontalDivider()
                     }
@@ -251,22 +303,23 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
         }
     }
 
-    if (confirmDelete) {
+    pendingDelete?.let { targets ->
         AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(Strings.deleteConfirmTitle(selection.size)) },
-            text = { Text(selection.joinToString(", ") { it.name }) },
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(Strings.deleteConfirmTitle(targets.size)) },
+            text = { Text(targets.joinToString(", ") { it.name }) },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmDelete = false
-                    val targets = selection.toList()
-                    selection.clear()
+                    pendingDelete = null
+                    selection.removeAll(targets)
                     app.deleteTunnels(targets)
                 }) { Text(Strings.DELETE) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(Strings.CANCEL) } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(Strings.CANCEL) } },
         )
     }
+
+    qrCode?.let { (tunnel, config) -> QrCodeDialog(tunnel.name, config) { qrCode = null } }
 
     if (scanning && cameras.isNotEmpty()) {
         QrScannerDialog(
@@ -291,6 +344,100 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                 }
             },
         )
+    }
+}
+
+/** Remembers whether Ctrl (or Meta) was held when the primary button went down. */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun Modifier.onPrimaryPress(onPress: (ctrl: Boolean) -> Unit): Modifier =
+    onPointerEvent(PointerEventType.Press) { event ->
+        if (event.button == PointerButton.Primary)
+            onPress(event.keyboardModifiers.isCtrlPressed || event.keyboardModifiers.isMetaPressed)
+    }
+
+/** Replaces the Android checkbox: a check mark when selected, otherwise a status dot. */
+@Composable
+private fun StatusIndicator(tunnel: ObservableTunnel, selected: Boolean) {
+    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        if (selected) {
+            Icon(Icons.Default.CheckCircle, contentDescription = Strings.SELECTED, tint = MaterialTheme.colorScheme.primary)
+        } else {
+            val color = when {
+                tunnel.state != Tunnel.State.UP -> MaterialTheme.colorScheme.outlineVariant
+                tunnel.connectionStatus == ObservableTunnel.ConnectionStatus.CONNECTED -> MaterialTheme.colorScheme.secondary
+                else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+            }
+            Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        }
+    }
+}
+
+/** Right-click menu for a single tunnel. */
+@Composable
+private fun TunnelContextMenu(
+    app: AppState,
+    tunnel: ObservableTunnel,
+    position: Offset,
+    isSelected: Boolean,
+    onDismiss: () -> Unit,
+    onToggleSelection: () -> Unit,
+    onShowQrCode: (Config) -> Unit,
+    onDelete: () -> Unit,
+) {
+    /** Run [block] with the tunnel's config, reporting load errors. */
+    fun withConfig(block: (Config) -> Unit) {
+        onDismiss()
+        app.scope.launch {
+            try {
+                block(tunnel.getConfigAsync())
+            } catch (e: Throwable) {
+                app.showSnackbar(ErrorMessages[e])
+            }
+        }
+    }
+
+    val up = tunnel.state == Tunnel.State.UP
+    ContextMenu(position, onDismiss) {
+        ContextMenuItem(
+            if (up) Strings.DISCONNECT else Strings.CONNECT,
+            if (up) Icons.Default.LinkOff else Icons.Default.Link,
+            enabled = !tunnel.isBusy,
+        ) { onDismiss(); app.toggleTunnel(tunnel, !up) }
+        ContextMenuSeparator()
+        ContextMenuItem(Strings.SHOW_DETAILS, Icons.Default.Info) { onDismiss(); app.openTunnel(tunnel) }
+        ContextMenuItem(Strings.EDIT, Icons.Default.Edit) {
+            onDismiss()
+            app.openTunnel(tunnel)
+            app.navigate(Screen.TunnelEditor(tunnel))
+        }
+        ContextMenuItem(Strings.EXPORT_CONFIG, Icons.Default.Save) { withConfig { app.exportConfig(tunnel, it) } }
+        ContextMenuItem(Strings.SHOW_QR_CODE, Icons.Default.QrCode2) { withConfig(onShowQrCode) }
+        ContextMenuSeparator()
+        ContextMenuItem(
+            if (isSelected) Strings.DESELECT else Strings.SELECT,
+            if (isSelected) Icons.Default.RemoveDone else Icons.Default.Done,
+            onClick = onToggleSelection,
+        )
+        ContextMenuSeparator()
+        ContextMenuItem(Strings.DELETE, Icons.Default.Delete, onClick = onDelete)
+    }
+}
+
+/** Right-click menu on a row that is part of a multiple selection. */
+@Composable
+private fun SelectionContextMenu(
+    position: Offset,
+    count: Int,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+) {
+    ContextMenu(position, onDismiss) {
+        ContextMenuItem(Strings.SELECT_ALL, Icons.Default.SelectAll, onClick = onSelectAll)
+        ContextMenuItem(Strings.CLEAR_SELECTION, Icons.Default.RemoveDone, onClick = onClearSelection)
+        ContextMenuSeparator()
+        ContextMenuItem(Strings.deleteSelected(count), Icons.Default.Delete, onClick = onDelete)
     }
 }
 

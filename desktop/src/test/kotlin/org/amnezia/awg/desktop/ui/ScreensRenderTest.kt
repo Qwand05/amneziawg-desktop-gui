@@ -4,10 +4,14 @@
  */
 package org.amnezia.awg.desktop.ui
 
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerKeyboardModifiers
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import org.amnezia.awg.config.Config
@@ -28,6 +32,7 @@ import javax.swing.SwingUtilities
  * against the throwaway config directory the Gradle test task points
  * `XDG_CONFIG_HOME` at; the sample tunnel is never brought up.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 class ScreensRenderTest {
     @Test
     fun rendersAllScreens() {
@@ -45,7 +50,7 @@ class ScreensRenderTest {
             width: Int = 960,
             height: Int = 720,
             dark: Boolean = false,
-            clickAt: Offset? = null,
+            clicks: List<Click> = emptyList(),
         ) {
             ImageComposeScene(width, height, Density(1f)) {
                 AmneziaContent(darkTheme = dark, colors = app.themeColors) { App(app) }
@@ -55,18 +60,15 @@ class ScreensRenderTest {
                     scene.render(i * 100_000_000L)
                     Thread.sleep(150)
                     onEdt { }
-                    if (i == 1 && clickAt != null) {
-                        val t = i * 100_000_000L
-                        scene.sendPointerEvent(PointerEventType.Move, clickAt, timeMillis = t / 1_000_000)
-                        scene.render(t + 10_000_000)
-                        scene.sendPointerEvent(PointerEventType.Press, clickAt, timeMillis = t / 1_000_000 + 20)
-                        scene.render(t + 30_000_000)
-                        scene.sendPointerEvent(PointerEventType.Release, clickAt, timeMillis = t / 1_000_000 + 60)
-                        scene.render(t + 70_000_000)
-                        onEdt { }
+                    if (i == 1) {
+                        clicks.forEachIndexed { n, click ->
+                            val t = i * 100_000_000L + n * 100_000_000L
+                            click.send(scene, t)
+                            onEdt { }
+                        }
                     }
                 }
-                val image = scene.render(1_000_000_000L)
+                val image = scene.render(10_000_000_000L)
                 val png = image.encodeToData(EncodedImageFormat.PNG)!!.bytes
                 File(out, "$name.png").writeBytes(png)
             }
@@ -75,7 +77,17 @@ class ScreensRenderTest {
         shot("list")
         // The add button of the list pane: the camera entry is disabled when
         // no camera is present (as on CI and this test's sandbox).
-        shot("add-menu", clickAt = Offset(316f, 676f))
+        shot("add-menu", clicks = listOf(Click(Offset(316f, 676f))))
+        // Rows: "office2" around y = 92, "sample" around y = 150.
+        shot("context-menu", clicks = listOf(Click(Offset(150f, 150f), secondary = true)))
+        shot(
+            "context-menu-selection",
+            clicks = listOf(
+                Click(Offset(150f, 92f), ctrl = true),
+                Click(Offset(150f, 150f), ctrl = true),
+                Click(Offset(150f, 150f), secondary = true),
+            ),
+        )
         val tunnel = onEdt { app.tunnelManager.tunnels.first { it.name == "sample" } }
         onEdt { app.openTunnel(tunnel) }
         shot("detail")
@@ -90,6 +102,28 @@ class ScreensRenderTest {
 
         onEdt { app.close() }
         assertTrue(File(out, "settings.png").length() > 0)
+    }
+
+    /** A mouse click as the window would deliver it: move, press, release. */
+    private class Click(val at: Offset, val secondary: Boolean = false, val ctrl: Boolean = false) {
+        fun send(scene: ImageComposeScene, t: Long) {
+            val ms = t / 1_000_000
+            val button = if (secondary) PointerButton.Secondary else PointerButton.Primary
+            val modifiers = PointerKeyboardModifiers(isCtrlPressed = ctrl)
+            scene.sendPointerEvent(PointerEventType.Move, at, timeMillis = ms, keyboardModifiers = modifiers)
+            scene.render(t + 10_000_000)
+            scene.sendPointerEvent(
+                PointerEventType.Press, at, timeMillis = ms + 20,
+                buttons = PointerButtons(isPrimaryPressed = !secondary, isSecondaryPressed = secondary),
+                keyboardModifiers = modifiers, button = button,
+            )
+            scene.render(t + 30_000_000)
+            scene.sendPointerEvent(
+                PointerEventType.Release, at, timeMillis = ms + 60,
+                keyboardModifiers = modifiers, button = button,
+            )
+            scene.render(t + 70_000_000)
+        }
     }
 
     private fun <T> onEdt(block: () -> T): T {
