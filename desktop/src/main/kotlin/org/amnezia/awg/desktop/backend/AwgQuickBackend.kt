@@ -55,7 +55,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
 
     override fun getLastHandshake(tunnel: Tunnel): Long {
         if (getState(tunnel) != Tunnel.State.UP) return -3
-        if (!hasPrivileges) return -2
+        if (!hasPrivileges || helperInstance?.isBusy == true) return -2
         val output = try {
             helper().exec("latest", tunnel.name)
         } catch (_: Exception) {
@@ -75,7 +75,9 @@ class AwgQuickBackend(private val configDir: File) : Backend {
      * so polling the detail screen never prompts by itself.
      */
     override fun getStatistics(tunnel: Tunnel): Statistics {
-        if (!hasPrivileges || getState(tunnel) != Tunnel.State.UP) return Statistics.empty()
+        // Skipped while a tunnel is being switched; the next poll catches up.
+        if (!hasPrivileges || helperInstance?.isBusy == true || getState(tunnel) != Tunnel.State.UP)
+            return Statistics.empty()
         val dump = try {
             helper().exec("dump", tunnel.name)
         } catch (_: Exception) {
@@ -123,7 +125,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
             if (originalState == Tunnel.State.UP) down(tunnel.name)
             val file = writeConfig(tunnel.name, config)
             try {
-                helper().exec("up", file.absolutePath, timeoutSeconds = 120)
+                helper().exec("up", file.absolutePath, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
             } catch (e: RootHelperException) {
                 throw BackendException(BackendException.Reason.AWG_QUICK_CONFIG_ERROR_CODE, e.message ?: e.code)
             }
@@ -138,7 +140,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
         val file = configFile(name)
         val target = if (file.isFile) file.absolutePath else name
         try {
-            helper().exec("down", target, timeoutSeconds = 120)
+            helper().exec("down", target, timeoutSeconds = UP_DOWN_TIMEOUT_SECONDS)
         } catch (e: RootHelperException) {
             val message = e.message ?: ""
             // awg-quick already reports the interface as down when it was not
@@ -191,6 +193,12 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     }
 
     companion object {
+        /**
+         * Split tunnels take well under a second (see awg-helper.sh), but
+         * awg-quick itself can need minutes to parse a full-tunnel config
+         * with thousands of extra AllowedIPs entries.
+         */
+        private const val UP_DOWN_TIMEOUT_SECONDS = 600L
         private val OWNER_ONLY = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"))
 
         /** Whether the AmneziaWG kernel module is loaded on this host. */

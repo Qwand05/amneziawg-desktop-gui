@@ -174,6 +174,26 @@ The `AMNEZIA_AWG_HELPER` environment variable selects how root is reached:
 | `sudo` | Uses `sudo -n`; needs a matching sudoers rule |
 | `direct` | The app itself runs as root |
 
+### Split tunnels
+
+Tunnels whose AllowedIPs do not include `0.0.0.0/0` or `::/0` (split tunnels, often lists of
+thousands of networks) are brought up differently from plain `awg-quick`:
+
+- **Speed:** `awg-quick` needs minutes to parse a long AllowedIPs list and adds routes one at a
+  time. The helper runs `awg-quick` with `Table = off` on a copy without AllowedIPs, then applies
+  the networks with one `awg set` call and installs all routes with one `ip -batch` call. A tunnel
+  with 2,000 networks comes up in well under a second.
+- **Endpoint protection:** when an AllowedIPs network covers the server's own address, `awg-quick`
+  would route the encrypted traffic back into the tunnel. The tunnel then never connects and the
+  covered part of the internet becomes unreachable. The helper keeps the endpoint on the route it
+  had before (a `/32` or `/128` route via your normal gateway) and removes that route again on
+  disconnect.
+- **Rollback:** if the endpoint cannot be reached outside the tunnel, or any step fails, the tunnel
+  is taken down again instead of being left half configured.
+
+Full tunnels (`0.0.0.0/0`) use plain `awg-quick`, which already protects the endpoint through
+policy routing.
+
 ### Storage
 
 Each tunnel is stored as an `awg-quick` configuration file, readable only by you (mode `0600`), in
@@ -196,6 +216,7 @@ for example ones started with `awg-quick up` from `/etc/amnezia/amneziawg/`:
 | "awg-quick was not found" | Install amneziawg-tools and make sure `awg-quick` is on your `PATH`. |
 | No tray icon on GNOME | Install the *AppIndicator and KStatusNotifierItem Support* extension. When started from a terminal, the app prints `AmneziaWG: native tray unavailable, falling back: …` if it had to fall back to the legacy tray. |
 | "Scan from QR code" is greyed out | No usable camera was detected (`/dev/video*`), or `ffmpeg` is missing. The menu entry says which. You can still import a screenshot of the QR code with **Import from QR code image**. |
+| No internet after a tunnel failed to connect or the app was killed | Bring the tunnel down by hand: `sudo awg-quick down <name>`, or `sudo ip link delete <name>` if that fails. Rebooting also works. |
 | Need more details about a failure | Open **Settings → View application log**, or run `journalctl -t awg-quick`. Starting the app from a terminal shows its own errors. |
 
 ## Project layout

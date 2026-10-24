@@ -49,8 +49,26 @@ class RootHelper private constructor(
      * @throws RootHelperException when the helper reports an error
      * @throws IllegalStateException when the helper is no longer running
      */
+    /**
+     * True while a command is being executed. The helper handles one request
+     * at a time, so callers that only poll (statistics) skip instead of
+     * queueing behind a long `awg-quick` run.
+     */
+    @Volatile
+    var isBusy: Boolean = false
+        private set
+
     @Synchronized
     fun exec(vararg args: String, timeoutSeconds: Long = 30): String {
+        isBusy = true
+        try {
+            return execLocked(args, timeoutSeconds)
+        } finally {
+            isBusy = false
+        }
+    }
+
+    private fun execLocked(args: Array<out String>, timeoutSeconds: Long): String {
         check(process.isAlive) { "The privileged helper is no longer running" }
         val id = nextId.incrementAndGet().toString()
         val future = java.util.concurrent.CompletableFuture<String>()
