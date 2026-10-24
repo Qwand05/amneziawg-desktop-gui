@@ -3,6 +3,7 @@
  */
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -58,12 +59,16 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "org.amnezia.awg.desktop.MainKt"
+        // Lets Main.kt set the X11 window class to "AmneziaWG" (see setWindowClass),
+        // which the launcher's StartupWMClass refers to.
+        jvmArgs += listOf("--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED")
 
         nativeDistributions {
             targetFormats(TargetFormat.Deb)
-            packageName = "amnezia-awg"
+            // Application name: shown in the launcher, names /opt/amnezia-awg/bin/AmneziaWG.
+            packageName = "AmneziaWG"
             packageVersion = appVersion
-            description = "Linux GUI for AmneziaWG"
+            description = "Manage AmneziaWG VPN tunnels"
             vendor = "AmneziaWG"
 
             // The packaged runtime is trimmed to these modules (plus the ones
@@ -82,10 +87,58 @@ compose.desktop {
                 // does not need to be installed setuid.
                 menuGroup = "Network"
                 iconFile.set(project.file("src/main/resources/icon.png"))
+                // Debian package and /opt directory name. Not "amneziawg": that is
+                // the official kernel module package.
+                packageName = "amnezia-awg"
             }
         }
     }
 }
+
+// The launcher entry (name, translated generic name and keywords, window
+// class) replaces jpackage's generated one. jpackage would take it from a
+// --resource-dir, but the Compose plugin always passes its own (empty) one
+// last, so the finished .deb is patched instead: unpack, swap the .desktop
+// file (keeping jpackage's Exec and Icon paths), fix md5sums, repack.
+val launcherEntry = layout.projectDirectory.file("packaging/linux/AmneziaWG.desktop")
+
+fun replaceLauncherEntry(deb: File, template: File, workDir: File) {
+    fun run(vararg command: String) {
+        val process = ProcessBuilder(*command).inheritIO().start()
+        check(process.waitFor() == 0) { "${command.joinToString(" ")} failed" }
+    }
+    val root = File(workDir, "deb-root").apply { deleteRecursively() }
+    run("dpkg-deb", "-R", deb.path, root.path)
+    val generated = root.walk().single { it.isFile && it.extension == "desktop" && "/opt/" in it.path }
+    fun field(name: String) = generated.readLines().first { it.startsWith("$name=") }.substringAfter('=')
+    generated.writeText(
+        template.readText()
+            .replace("APPLICATION_LAUNCHER", field("Exec"))
+            .replace("APPLICATION_ICON", field("Icon"))
+    )
+    val md5sums = File(root, "DEBIAN/md5sums")
+    if (md5sums.isFile) {
+        val path = generated.relativeTo(root).path
+        val digest = MessageDigest.getInstance("MD5").digest(generated.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        md5sums.writeText(md5sums.readLines().joinToString("\n", postfix = "\n") { line ->
+            if (line.endsWith("  $path")) "$digest  $path" else line
+        })
+    }
+    run("dpkg-deb", "--root-owner-group", "--build", root.path, deb.path)
+    root.deleteRecursively()
+}
+
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>()
+    .matching { it.name.endsWith("Deb") }
+    .configureEach {
+        inputs.file(launcherEntry)
+        doLast {
+            destinationDir.get().asFile.walk().filter { it.extension == "deb" }.forEach { deb ->
+                replaceLauncherEntry(deb, launcherEntry.asFile, temporaryDir)
+            }
+        }
+    }
 
 tasks.test {
     // Never let tests touch the real ~/.config/amnezia-awg or the real log.

@@ -58,6 +58,7 @@ import org.amnezia.awg.desktop.ui.TunnelListScreen
 import org.amnezia.awg.desktop.util.FileDialogs
 import org.amnezia.awg.desktop.util.Strings
 import java.awt.SystemTray
+import java.awt.Toolkit
 
 /** Width from which the list and the selected tunnel are shown side by side (Android's sw600dp layout). */
 private val TWO_PANE_MIN_WIDTH = 760.dp
@@ -77,6 +78,8 @@ fun main(args: Array<String>) {
             "${System.getProperty("os.name")} ${System.getProperty("os.version")}, " +
             "desktop ${System.getenv("XDG_CURRENT_DESKTOP") ?: "unknown"} (${System.getenv("XDG_SESSION_TYPE") ?: "unknown"})",
     )
+
+    setWindowClass(Strings.APP_NAME)
 
     val windowVisible = mutableStateOf(true)
     val showWindow = { windowVisible.value = true }
@@ -240,5 +243,25 @@ private fun ScreenContent(app: AppState, screen: Screen, showBack: Boolean) {
         is Screen.TunnelEditor -> TunnelEditorScreen(app, screen.tunnel)
         is Screen.Settings -> SettingsScreen(app)
         is Screen.LogViewer -> LogViewerScreen(app)
+    }
+}
+
+/**
+ * Sets the X11 window class (WM_CLASS) so desktops match the window to the
+ * launcher's `StartupWMClass` for its taskbar name and icon. Java would use
+ * the class of the thread that creates the window ("java-lang-Thread"). Needs
+ * `--add-opens java.desktop/sun.awt.X11` (see build.gradle.kts); without it the
+ * default is kept.
+ */
+private fun setWindowClass(name: String) {
+    try {
+        val toolkit = Toolkit.getDefaultToolkit()
+        if (toolkit.javaClass.name != "sun.awt.X11.XToolkit") return
+        toolkit.javaClass.getDeclaredField("awtAppClassName").apply {
+            isAccessible = true
+            set(null, name)
+        }
+    } catch (e: Exception) {
+        AppLog.w("App", "Could not set the window class: $e")
     }
 }

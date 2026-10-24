@@ -146,7 +146,7 @@ To start the app in the tray when you log in, create `~/.config/autostart/amnezi
 [Desktop Entry]
 Type=Application
 Name=AmneziaWG
-Exec=/opt/amnezia-awg/bin/amnezia-awg --hidden
+Exec=/opt/amnezia-awg/bin/AmneziaWG --hidden
 X-GNOME-Autostart-enabled=true
 ```
 
