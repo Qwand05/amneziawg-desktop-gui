@@ -28,6 +28,7 @@ import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.util.AppPaths
+import org.amnezia.awg.desktop.util.BuildInfo
 import org.amnezia.awg.desktop.util.ErrorMessages
 import org.amnezia.awg.desktop.util.FileDialogs
 import org.amnezia.awg.desktop.util.Prefs
@@ -79,7 +80,7 @@ fun SettingsScreen(app: AppState) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-            ActionRow(Strings.versionTitle(Strings.APP_VERSION), moduleVersion) {}
+            ActionRow(Strings.versionTitle(BuildInfo.version), moduleVersion) {}
             ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
             ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
             ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}

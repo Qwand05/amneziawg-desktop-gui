@@ -94,8 +94,16 @@ Build a `.deb` package (written to `desktop/build/compose/binaries/main/deb/`):
 The project still includes the Android modules, so Gradle needs an Android SDK to configure the
 build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment variable.
 
-> **Note:** The `.deb` packaging is configured but has not been tested yet. Running from source with
-> `:desktop:run` is the tested path.
+Install it with:
+
+```bash
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.0.2_amd64.deb
+```
+
+The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
+only contains the Java modules listed in `desktop/build.gradle.kts`. If you add a dependency and
+the packaged app fails with `NoClassDefFoundError` while `:desktop:run` works, run
+`./gradlew :desktop:suggestRuntimeModules` and add the modules it lists.
 
 ## Using it
 

@@ -14,8 +14,6 @@ package org.amnezia.awg.desktop.util
 object Strings {
     const val APP_NAME = "AmneziaWG"
 
-    /** Kept in sync with `packageVersion` in desktop/build.gradle.kts. */
-    const val APP_VERSION = "3.1.4"
 
     // Tunnel list
     const val TUNNEL_LIST_PLACEHOLDER = "Add a tunnel using the button below"

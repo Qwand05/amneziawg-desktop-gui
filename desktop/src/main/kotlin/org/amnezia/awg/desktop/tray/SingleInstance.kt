@@ -46,6 +46,10 @@ class SingleInstance private constructor(private val connection: DBusConnection)
                 DBusConnectionBuilder.forSessionBus().withShared(false).build()
             } catch (_: Exception) {
                 return Result.NoBus
+            } catch (e: LinkageError) {
+                // A JDK module missing from a trimmed runtime must not take the app down.
+                System.err.println("AmneziaWG: single-instance check unavailable: $e")
+                return Result.NoBus
             }
             return try {
                 connection.requestBusName(BUS_NAME)

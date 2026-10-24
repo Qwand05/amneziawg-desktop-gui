@@ -10,6 +10,30 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/**
+ * Version of the desktop GUI. It is independent of the Android app and of
+ * AmneziaWG itself, and is used for the .deb package and the Settings screen.
+ */
+val appVersion = "1.0.2"
+version = appVersion
+
+// Makes the version available at runtime as a classpath resource.
+val generateVersionResource by tasks.registering {
+    val outputDir = layout.buildDirectory.dir("generated/version")
+    inputs.property("version", appVersion)
+    outputs.dir(outputDir)
+    doLast {
+        outputDir.get().file("amnezia-awg-version.properties").asFile
+            .writeText("version=$appVersion\n")
+    }
+}
+
+sourceSets {
+    main {
+        resources.srcDir(generateVersionResource)
+    }
+}
+
 kotlin {
     jvmToolchain(21)
     compilerOptions {
@@ -38,9 +62,18 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb)
             packageName = "amnezia-awg"
-            packageVersion = "3.1.4"
+            packageVersion = appVersion
             description = "Linux GUI for AmneziaWG"
             vendor = "AmneziaWG"
+
+            // The packaged runtime is trimmed to these modules (plus the ones
+            // the plugin always adds). Re-check with `./gradlew
+            // :desktop:suggestRuntimeModules` after adding dependencies:
+            //  - jdk.security.auth: dbus-java authenticates to the session bus
+            //    (tray icon, single instance) with UnixSystem.
+            //  - jdk.unsupported: sun.misc.Unsafe, used by libraries at runtime.
+            //  - java.instrument: referenced by a dependency; cheap to include.
+            modules("java.instrument", "jdk.security.auth", "jdk.unsupported")
 
             linux {
                 // The GUI talks to awg-quick through a polkit helper, so it

@@ -206,7 +206,12 @@ class StatusNotifierTray private constructor(
         fun start(onActivate: () -> Unit): StatusNotifierTray? {
             val connection = try {
                 DBusConnectionBuilder.forSessionBus().withShared(false).build()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                System.err.println("AmneziaWG: native tray unavailable, falling back: $e")
+                return null
+            } catch (e: LinkageError) {
+                // A JDK module missing from a trimmed runtime must not take the app down.
+                System.err.println("AmneziaWG: native tray unavailable, falling back: $e")
                 return null
             }
             return try {
