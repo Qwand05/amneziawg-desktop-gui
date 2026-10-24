@@ -100,7 +100,7 @@ build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment var
 Install it with:
 
 ```bash
-sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.0.2_amd64.deb
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.0.3_amd64.deb
 ```
 
 The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
