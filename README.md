@@ -29,7 +29,9 @@ with the AmneziaWG tools should work too.
 - **System tray icon** (native StatusNotifierItem, so it works on KDE Plasma under Wayland):
   - closing the window keeps the app running in the tray;
   - left-click the icon to show or hide the window;
-  - the right-click menu switches tunnels on and off directly;
+  - the right-click menu has an entry per tunnel showing its status, with a submenu holding the
+    traffic so far, Connect/Disconnect, Show details and Create desktop shortcut;
+  - Disconnect all, Settings and the log viewer are in the menu too;
   - the icon is in color while a tunnel is connected and grey otherwise.
 - **Desktop shortcuts**: put a shortcut for a tunnel on your Desktop; double-clicking it connects
   the tunnel, or disconnects it when it is up, without opening the window.
@@ -137,9 +139,19 @@ off first if you want them down.
 
 ### Tray
 
-Closing the window hides it to the tray. Use **Quit** in the tray menu to exit. If you prefer closing
-to quit, turn off *Keep running in the system tray* in Settings. The setting is greyed out when no
-tray is available, and closing the window then always quits.
+Closing the window hides it to the tray. Left-click the icon to show or hide the window; right-click
+it for the menu:
+
+- **Show / Hide AmneziaWG**.
+- One entry per tunnel, titled with its status (*Connected*, *Connecting…* or *Not connected*).
+  Hover it for the submenu: the traffic so far (while connected), **Connect** or **Disconnect**,
+  **Show details** and **Create desktop shortcut**.
+- **Disconnect all**, greyed out while nothing is connected.
+- **Settings** and **View application log**, which open the window on that screen.
+- **Quit**.
+
+If you prefer closing the window to quit, turn off *Keep running in the system tray* in Settings.
+The setting is greyed out when no tray is available, and closing the window then always quits.
 
 To start the app in the tray when you log in, create `~/.config/autostart/amnezia-awg.desktop`. The
 `Exec` path below is where the `.deb` package installs the launcher.

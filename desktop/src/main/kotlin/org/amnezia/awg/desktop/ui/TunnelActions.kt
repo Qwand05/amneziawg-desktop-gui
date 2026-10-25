@@ -67,6 +67,15 @@ suspend fun AppState.setTunnelState(tunnel: ObservableTunnel, checked: Boolean):
     }
 }
 
+/** Take every running tunnel down, one after the other (the tray's "Disconnect all"). */
+fun AppState.disconnectAll() {
+    scope.launch {
+        for (tunnel in tunnelManager.tunnels.filter { it.state == Tunnel.State.UP && !it.isBusy }) {
+            setTunnelState(tunnel, false)
+        }
+    }
+}
+
 /**
  * `--toggle <name>` from a desktop shortcut: connect the tunnel if it is down,
  * disconnect it otherwise. [onFailure] runs when there is no such tunnel or

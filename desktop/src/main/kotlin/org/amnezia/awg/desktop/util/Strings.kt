@@ -233,6 +233,8 @@ object Strings {
     val TRAY_HIDE get() = t("tray_hide")
     val TRAY_NO_TUNNELS get() = t("tray_no_tunnels")
     val TRAY_QUIT get() = t("tray_quit")
+    val TRAY_DISCONNECT_ALL get() = t("tray_disconnect_all")
+    val TUNNEL_STATUS_DISCONNECTED get() = t("tunnel_status_disconnected")
     val TRAY_DISCONNECTED get() = t("tray_disconnected")
     fun trayConnected(names: List<String>) = f("tray_connected", names.joinToString(", "))
 

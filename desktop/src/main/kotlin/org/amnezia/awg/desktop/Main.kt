@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.MenuScope
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -46,10 +47,14 @@ import org.amnezia.awg.desktop.tray.SingleInstance
 import org.amnezia.awg.desktop.tray.StatusNotifierTray
 import org.amnezia.awg.desktop.tray.TrayMenuEntry
 import org.amnezia.awg.desktop.tray.TrayState
+import org.amnezia.awg.desktop.ui.createDesktopShortcut
+import org.amnezia.awg.desktop.ui.disconnectAll
 import org.amnezia.awg.desktop.ui.toggleTunnel
 import org.amnezia.awg.desktop.ui.toggleTunnelNamed
+import org.amnezia.awg.desktop.ui.tunnelStatusText
 import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.BuildInfo
+import org.amnezia.awg.desktop.util.QuantityFormatter
 import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.AmneziaContent
@@ -149,7 +154,13 @@ fun main(args: Array<String>) {
 
         val trayState by remember {
             derivedStateOf {
-                trayState(app, windowVisible.value, onToggleWindow = { windowVisible.value = !windowVisible.value }, onQuit = ::quit)
+                trayState(
+                    app,
+                    windowVisible.value,
+                    onToggleWindow = { windowVisible.value = !windowVisible.value },
+                    onShowWindow = showWindow,
+                    onQuit = ::quit,
+                )
             }
         }
         LaunchedEffect(sniTray) {
@@ -157,14 +168,7 @@ fun main(args: Array<String>) {
         }
         if (awtTray) {
             Tray(icon = icon, tooltip = trayState.tooltip, onAction = { windowVisible.value = true }) {
-                trayState.menu.forEach { entry ->
-                    when (entry) {
-                        is TrayMenuEntry.Action -> Item(entry.label, enabled = entry.enabled, onClick = entry.onClick)
-                        is TrayMenuEntry.Toggle ->
-                            CheckboxItem(entry.label, checked = entry.checked, enabled = entry.enabled) { entry.onClick() }
-                        TrayMenuEntry.Separator -> Separator()
-                    }
-                }
+                TrayMenuEntries(trayState.menu)
             }
         }
 
@@ -206,23 +210,70 @@ private fun toggleArgument(args: Array<String>): String? {
     return null
 }
 
-/** Tray icon contents: show/hide, one checkable entry per tunnel, quit. */
-private fun trayState(app: AppState, windowVisible: Boolean, onToggleWindow: () -> Unit, onQuit: () -> Unit): TrayState {
+/**
+ * Tray icon contents: show/hide; a submenu per tunnel, titled with its status,
+ * holding its traffic, connect/disconnect, details and a desktop shortcut;
+ * disconnect all; settings and the log; quit.
+ */
+private fun trayState(
+    app: AppState,
+    windowVisible: Boolean,
+    onToggleWindow: () -> Unit,
+    onShowWindow: () -> Unit,
+    onQuit: () -> Unit,
+): TrayState {
     val tunnels = app.tunnelManager.tunnels.toList()
     val up = tunnels.filter { it.state == Tunnel.State.UP }
+    fun open(screen: Screen) {
+        onShowWindow()
+        if (app.currentScreen != screen) app.navigate(screen)
+    }
     val menu = buildList {
         add(TrayMenuEntry.Action(if (windowVisible) Strings.TRAY_HIDE else Strings.TRAY_SHOW, onClick = onToggleWindow))
         add(TrayMenuEntry.Separator)
         if (tunnels.isEmpty()) add(TrayMenuEntry.Action(Strings.TRAY_NO_TUNNELS, enabled = false) {})
         tunnels.forEach { tunnel ->
-            val checked = tunnel.state == Tunnel.State.UP
-            add(TrayMenuEntry.Toggle(tunnel.name, checked, enabled = !tunnel.isBusy) { app.toggleTunnel(tunnel, !checked) })
+            val isUp = tunnel.state == Tunnel.State.UP
+            val status = tunnelStatusText(tunnel) ?: Strings.TUNNEL_STATUS_DISCONNECTED
+            val children = buildList {
+                // Traffic so far, once the first statistics have been read.
+                tunnel.statistics?.takeIf { isUp }?.let { stats ->
+                    val transfer = Strings.transferRxTx(QuantityFormatter.formatBytes(stats.totalRx()), QuantityFormatter.formatBytes(stats.totalTx()))
+                    add(TrayMenuEntry.Action(transfer, enabled = false) {})
+                    add(TrayMenuEntry.Separator)
+                }
+                add(TrayMenuEntry.Action(if (isUp) Strings.DISCONNECT else Strings.CONNECT, enabled = !tunnel.isBusy) {
+                    app.toggleTunnel(tunnel, !isUp)
+                })
+                add(TrayMenuEntry.Action(Strings.SHOW_DETAILS) { onShowWindow(); app.openTunnel(tunnel) })
+                add(TrayMenuEntry.Action(Strings.CREATE_SHORTCUT) { app.createDesktopShortcut(tunnel) })
+            }
+            add(TrayMenuEntry.Submenu("${tunnel.name} — $status", children = children))
         }
+        add(TrayMenuEntry.Separator)
+        add(TrayMenuEntry.Action(Strings.TRAY_DISCONNECT_ALL, enabled = up.isNotEmpty()) { app.disconnectAll() })
+        add(TrayMenuEntry.Separator)
+        add(TrayMenuEntry.Action(Strings.SETTINGS) { open(Screen.Settings) })
+        add(TrayMenuEntry.Action(Strings.LOG_VIEWER_PREF_TITLE) { open(Screen.LogViewer) })
         add(TrayMenuEntry.Separator)
         add(TrayMenuEntry.Action(Strings.TRAY_QUIT, onClick = onQuit))
     }
     val tooltip = if (up.isEmpty()) Strings.TRAY_DISCONNECTED else Strings.trayConnected(up.map { it.name })
     return TrayState(tooltip, up.isNotEmpty(), menu)
+}
+
+/** The legacy AWT tray's menu, built from the same entries (submenus included). */
+@Composable
+private fun MenuScope.TrayMenuEntries(entries: List<TrayMenuEntry>) {
+    entries.forEach { entry ->
+        when (entry) {
+            is TrayMenuEntry.Action -> Item(entry.label, enabled = entry.enabled, onClick = entry.onClick)
+            is TrayMenuEntry.Toggle ->
+                CheckboxItem(entry.label, checked = entry.checked, enabled = entry.enabled) { entry.onClick() }
+            is TrayMenuEntry.Submenu -> Menu(entry.label, enabled = entry.enabled) { TrayMenuEntries(entry.children) }
+            TrayMenuEntry.Separator -> Separator()
+        }
+    }
 }
 
 @Composable

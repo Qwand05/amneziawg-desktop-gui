@@ -35,11 +35,81 @@ sealed class TrayMenuEntry {
         override fun hashCode() = (label.hashCode() * 31 + checked.hashCode()) * 31 + enabled.hashCode()
     }
 
+    class Submenu(val label: String, val enabled: Boolean = true, val children: List<TrayMenuEntry>) : TrayMenuEntry() {
+        override fun equals(other: Any?) =
+            other is Submenu && other.label == label && other.enabled == enabled && other.children == children
+        override fun hashCode() = (label.hashCode() * 31 + enabled.hashCode()) * 31 + children.hashCode()
+    }
+
     data object Separator : TrayMenuEntry()
 }
 
 /** What the tray shows; [active] picks the colored or the greyed out icon. */
 data class TrayState(val tooltip: String, val active: Boolean, val menu: List<TrayMenuEntry>)
+
+internal const val ROOT_ID = 0
+internal const val FIRST_ITEM_ID = 1
+private const val LAYOUT_SIGNATURE = "(ia{sv}av)"
+
+/**
+ * The menu as dbusmenu sees it: a tree of integer ids, assigned depth-first
+ * from [FIRST_ITEM_ID] so that an item keeps its id as long as nothing
+ * before it changes. The root ([ROOT_ID]) holds the top-level entries.
+ */
+internal class MenuTree(entries: List<TrayMenuEntry>) {
+    class Node(val id: Int, val entry: TrayMenuEntry?, val children: List<Node>)
+
+    private val nodes = HashMap<Int, Node>()
+    val root: Node
+
+    init {
+        var next = FIRST_ITEM_ID
+        fun build(entry: TrayMenuEntry?): Node {
+            val id = if (entry == null) ROOT_ID else next++
+            val children = when (entry) {
+                null -> entries
+                is TrayMenuEntry.Submenu -> entry.children
+                else -> emptyList()
+            }
+            return Node(id, entry, children.map(::build)).also { nodes[id] = it }
+        }
+        root = build(null)
+    }
+
+    fun node(id: Int): Node? = nodes[id]
+
+    /** [id]'s node with its children down to [depth] levels; negative means all of them. */
+    fun layout(id: Int, depth: Int): MenuLayout? = node(id)?.let { layout(it, depth) }
+
+    private fun layout(node: Node, depth: Int): MenuLayout {
+        val children = if (depth == 0) emptyList() else node.children.map { Variant(layout(it, depth - 1), LAYOUT_SIGNATURE) }
+        return MenuLayout(node.id, properties(node), children)
+    }
+
+    fun properties(node: Node): Map<String, Variant<*>> = when (val entry = node.entry) {
+        null -> mapOf("children-display" to Variant("submenu"))
+        is TrayMenuEntry.Action -> mapOf("label" to Variant(entry.label), "enabled" to Variant(entry.enabled))
+        is TrayMenuEntry.Toggle -> mapOf(
+            "label" to Variant(entry.label),
+            "enabled" to Variant(entry.enabled),
+            "toggle-type" to Variant("checkmark"),
+            "toggle-state" to Variant(if (entry.checked) 1 else 0),
+        )
+        is TrayMenuEntry.Submenu -> mapOf(
+            "label" to Variant(entry.label),
+            "enabled" to Variant(entry.enabled),
+            "children-display" to Variant("submenu"),
+        )
+        TrayMenuEntry.Separator -> mapOf("type" to Variant("separator"))
+    }
+
+    /** The click handler of [id], or null for separators, submenus and disabled items. */
+    fun onClick(id: Int): (() -> Unit)? = when (val entry = node(id)?.entry) {
+        is TrayMenuEntry.Action -> entry.onClick.takeIf { entry.enabled }
+        is TrayMenuEntry.Toggle -> entry.onClick.takeIf { entry.enabled }
+        else -> null
+    }
+}
 
 /**
  * Native tray icon implementing the StatusNotifierItem specification, which
@@ -57,6 +127,8 @@ class StatusNotifierTray private constructor(
 ) : AutoCloseable {
     @Volatile
     private var state = TrayState("", false, emptyList())
+    @Volatile
+    private var tree = MenuTree(emptyList())
     private val revision = AtomicLong(1)
     private val activeIcon = loadIcon(greyscale = false)
     private val inactiveIcon = loadIcon(greyscale = true)
@@ -103,34 +175,25 @@ class StatusNotifierTray private constructor(
         override fun GetAll(iface: String) = properties
 
         override fun GetLayout(parentId: Int, recursionDepth: Int, propertyNames: List<String>): LayoutResult<UInt32, MenuLayout> {
-            val entries = state.menu
-            val layout = if (parentId == ROOT_ID) {
-                val children = if (recursionDepth == 0) emptyList()
-                else entries.indices.map { Variant(itemLayout(it, entries[it]), LAYOUT_SIGNATURE) }
-                MenuLayout(ROOT_ID, mapOf("children-display" to Variant("submenu")), children)
-            } else {
-                itemLayout(parentId - FIRST_ITEM_ID, entries.getOrNull(parentId - FIRST_ITEM_ID) ?: TrayMenuEntry.Separator)
-            }
+            val tree = tree
+            // An id the shell remembers from an older revision gets an empty node.
+            val layout = tree.layout(parentId, recursionDepth) ?: MenuLayout(parentId, mapOf("type" to Variant("separator")), emptyList())
             return LayoutResult(UInt32(revision.get()), layout)
         }
 
         override fun GetGroupProperties(ids: List<Int>, propertyNames: List<String>): List<MenuItemProperties> {
-            val entries = state.menu
-            return ids.mapNotNull { id ->
-                entries.getOrNull(id - FIRST_ITEM_ID)?.let { MenuItemProperties(id, properties(it)) }
-            }
+            val tree = tree
+            return ids.mapNotNull { id -> tree.node(id)?.let { MenuItemProperties(id, tree.properties(it)) } }
         }
 
-        override fun GetProperty(id: Int, name: String): Variant<*> =
-            state.menu.getOrNull(id - FIRST_ITEM_ID)?.let { properties(it)[name] } ?: Variant("")
+        override fun GetProperty(id: Int, name: String): Variant<*> {
+            val tree = tree
+            return tree.node(id)?.let { tree.properties(it)[name] } ?: Variant("")
+        }
 
         override fun Event(id: Int, eventId: String, data: Variant<*>, timestamp: UInt32) {
             if (eventId != "clicked") return
-            when (val entry = state.menu.getOrNull(id - FIRST_ITEM_ID)) {
-                is TrayMenuEntry.Action -> if (entry.enabled) SwingUtilities.invokeLater(entry.onClick)
-                is TrayMenuEntry.Toggle -> if (entry.enabled) SwingUtilities.invokeLater(entry.onClick)
-                else -> {}
-            }
+            tree.onClick(id)?.let { SwingUtilities.invokeLater(it) }
         }
 
         override fun EventGroup(events: List<MenuEvent>): List<Int> {
@@ -149,20 +212,6 @@ class StatusNotifierTray private constructor(
 
     private fun readOnly(name: String) = DBusExecutionException("Property $name is read-only")
 
-    private fun itemLayout(index: Int, entry: TrayMenuEntry) =
-        MenuLayout(FIRST_ITEM_ID + index, properties(entry), emptyList())
-
-    private fun properties(entry: TrayMenuEntry): Map<String, Variant<*>> = when (entry) {
-        is TrayMenuEntry.Action -> mapOf("label" to Variant(entry.label), "enabled" to Variant(entry.enabled))
-        is TrayMenuEntry.Toggle -> mapOf(
-            "label" to Variant(entry.label),
-            "enabled" to Variant(entry.enabled),
-            "toggle-type" to Variant("checkmark"),
-            "toggle-state" to Variant(if (entry.checked) 1 else 0),
-        )
-        TrayMenuEntry.Separator -> mapOf("type" to Variant("separator"))
-    }
-
     fun update(newState: TrayState) {
         val old = state
         state = newState
@@ -170,6 +219,7 @@ class StatusNotifierTray private constructor(
             if (old.active != newState.active) connection.sendMessage(StatusNotifierItemInterface.NewIcon(ITEM_PATH))
             if (old.tooltip != newState.tooltip) connection.sendMessage(StatusNotifierItemInterface.NewToolTip(ITEM_PATH))
             if (old.menu != newState.menu) {
+                tree = MenuTree(newState.menu)
                 connection.sendMessage(DBusMenuInterface.LayoutUpdated(MENU_PATH, UInt32(revision.incrementAndGet()), ROOT_ID))
             }
         } catch (_: Exception) {
@@ -195,9 +245,6 @@ class StatusNotifierTray private constructor(
         private const val MENU_PATH = "/MenuBar"
         private const val WATCHER_NAME = "org.kde.StatusNotifierWatcher"
         private const val WATCHER_PATH = "/StatusNotifierWatcher"
-        private const val LAYOUT_SIGNATURE = "(ia{sv}av)"
-        private const val ROOT_ID = 0
-        private const val FIRST_ITEM_ID = 1
         private val ICON_SIZES = intArrayOf(16, 22, 24, 32, 48, 64)
 
         /**
