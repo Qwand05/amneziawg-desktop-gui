@@ -74,6 +74,12 @@ class MenuItemProperties(
     @field:Position(1) @JvmField val properties: Map<String, Variant<*>>,
 ) : Struct()
 
+/** Properties an item no longer has, for ItemsPropertiesUpdated. */
+class MenuItemRemovedProperties(
+    @field:Position(0) @JvmField val id: Int,
+    @field:Position(1) @JvmField val names: List<String>,
+) : Struct()
+
 class MenuEvent(
     @field:Position(0) @JvmField val id: Int,
     @field:Position(1) @JvmField val eventId: String,
@@ -106,4 +112,11 @@ interface DBusMenuInterface : DBusInterface {
     fun AboutToShowGroup(ids: List<Int>): AboutToShowGroupResult<List<Int>, List<Int>>
 
     class LayoutUpdated(path: String, val revision: UInt32, val parent: Int) : DBusSignal(path, revision, parent)
+
+    /** Property changes of existing items; the shell applies them without rebuilding the menu. */
+    class ItemsPropertiesUpdated(
+        path: String,
+        val updatedProps: List<MenuItemProperties>,
+        val removedProps: List<MenuItemRemovedProperties>,
+    ) : DBusSignal(path, updatedProps, removedProps)
 }

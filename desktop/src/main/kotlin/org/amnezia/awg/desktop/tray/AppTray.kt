@@ -21,27 +21,48 @@ import javax.swing.SwingUtilities
 
 /**
  * An entry of the tray icon's context menu. Equality ignores the click
- * handlers so that the shell is only told about real layout changes.
+ * handlers so that the shell is only told about real changes.
+ *
+ * The [key] identifies an entry among its siblings across updates (the
+ * label does by default): the shell keeps menu items by id, so an entry
+ * must keep its id even when entries before it come and go, or the shell
+ * would show it with another entry's label and state.
  */
 sealed class TrayMenuEntry {
-    class Action(val label: String, val enabled: Boolean = true, val onClick: () -> Unit) : TrayMenuEntry() {
+    abstract val key: String
+
+    class Action(val label: String, val enabled: Boolean = true, override val key: String = label, val onClick: () -> Unit) : TrayMenuEntry() {
         override fun equals(other: Any?) = other is Action && other.label == label && other.enabled == enabled
         override fun hashCode() = label.hashCode() * 31 + enabled.hashCode()
     }
 
-    class Toggle(val label: String, val checked: Boolean, val enabled: Boolean = true, val onClick: () -> Unit) : TrayMenuEntry() {
+    class Toggle(
+        val label: String,
+        val checked: Boolean,
+        val enabled: Boolean = true,
+        override val key: String = label,
+        val onClick: () -> Unit,
+    ) : TrayMenuEntry() {
         override fun equals(other: Any?) =
             other is Toggle && other.label == label && other.checked == checked && other.enabled == enabled
         override fun hashCode() = (label.hashCode() * 31 + checked.hashCode()) * 31 + enabled.hashCode()
     }
 
-    class Submenu(val label: String, val enabled: Boolean = true, val children: List<TrayMenuEntry>) : TrayMenuEntry() {
+    class Submenu(
+        val label: String,
+        val enabled: Boolean = true,
+        override val key: String = label,
+        val children: List<TrayMenuEntry>,
+    ) : TrayMenuEntry() {
         override fun equals(other: Any?) =
             other is Submenu && other.label == label && other.enabled == enabled && other.children == children
         override fun hashCode() = (label.hashCode() * 31 + enabled.hashCode()) * 31 + children.hashCode()
     }
 
-    data object Separator : TrayMenuEntry()
+    /** Keyed by its ordinal among its sibling separators. */
+    data object Separator : TrayMenuEntry() {
+        override val key get() = "separator"
+    }
 }
 
 /** What the tray shows; [active] picks the colored or the greyed out icon. */
@@ -52,31 +73,64 @@ internal const val FIRST_ITEM_ID = 1
 private const val LAYOUT_SIGNATURE = "(ia{sv}av)"
 
 /**
- * The menu as dbusmenu sees it: a tree of integer ids, assigned depth-first
- * from [FIRST_ITEM_ID] so that an item keeps its id as long as nothing
- * before it changes. The root ([ROOT_ID]) holds the top-level entries.
+ * Hands out dbusmenu ids by entry path (`parent path / key`), the same id
+ * for the same path for as long as the tray lives, so that an entry's id
+ * never changes and no id is ever reused for a different entry.
  */
-internal class MenuTree(entries: List<TrayMenuEntry>) {
+internal class MenuIds {
+    private val ids = HashMap<String, Int>()
+
+    fun idOf(path: String): Int = ids.getOrPut(path) { FIRST_ITEM_ID + ids.size }
+}
+
+/**
+ * The menu as dbusmenu sees it: a tree of integer ids. The root ([ROOT_ID])
+ * holds the top-level entries.
+ */
+internal class MenuTree(entries: List<TrayMenuEntry>, ids: MenuIds = MenuIds()) {
     class Node(val id: Int, val entry: TrayMenuEntry?, val children: List<Node>)
 
     private val nodes = HashMap<Int, Node>()
     val root: Node
 
     init {
-        var next = FIRST_ITEM_ID
-        fun build(entry: TrayMenuEntry?): Node {
-            val id = if (entry == null) ROOT_ID else next++
+        fun build(entry: TrayMenuEntry?, path: String): Node {
+            val id = if (entry == null) ROOT_ID else ids.idOf(path)
             val children = when (entry) {
                 null -> entries
                 is TrayMenuEntry.Submenu -> entry.children
                 else -> emptyList()
             }
-            return Node(id, entry, children.map(::build)).also { nodes[id] = it }
+            var separators = 0
+            val childNodes = children.map { child ->
+                val key = if (child is TrayMenuEntry.Separator) "${child.key}#${separators++}" else child.key
+                build(child, "$path/$key")
+            }
+            return Node(id, entry, childNodes).also { nodes[id] = it }
         }
-        root = build(null)
+        root = build(null, "")
     }
 
     fun node(id: Int): Node? = nodes[id]
+
+    /** What changed since [old]: whether any node's children differ, and the ids whose properties did. */
+    class Diff(val structureChanged: Boolean, val changedIds: List<Int>)
+
+    fun diff(old: MenuTree): Diff {
+        var structureChanged = false
+        val changed = ArrayList<Int>()
+        for (node in nodes.values) {
+            val before = old.node(node.id)
+            if (before == null) {
+                structureChanged = true
+                continue
+            }
+            if (before.children.map { it.id } != node.children.map { it.id }) structureChanged = true
+            if (plainProperties(before) != plainProperties(node)) changed.add(node.id)
+        }
+        if (old.nodes.keys != nodes.keys) structureChanged = true
+        return Diff(structureChanged, changed.sorted())
+    }
 
     /** [id]'s node with its children down to [depth] levels; negative means all of them. */
     fun layout(id: Int, depth: Int): MenuLayout? = node(id)?.let { layout(it, depth) }
@@ -103,6 +157,9 @@ internal class MenuTree(entries: List<TrayMenuEntry>) {
         TrayMenuEntry.Separator -> mapOf("type" to Variant("separator"))
     }
 
+    /** [properties] with the variants unwrapped, for comparison. */
+    private fun plainProperties(node: Node): Map<String, Any?> = properties(node).mapValues { it.value.value }
+
     /** The click handler of [id], or null for separators, submenus and disabled items. */
     fun onClick(id: Int): (() -> Unit)? = when (val entry = node(id)?.entry) {
         is TrayMenuEntry.Action -> entry.onClick.takeIf { entry.enabled }
@@ -127,8 +184,9 @@ class StatusNotifierTray private constructor(
 ) : AutoCloseable {
     @Volatile
     private var state = TrayState("", false, emptyList())
+    private val menuIds = MenuIds()
     @Volatile
-    private var tree = MenuTree(emptyList())
+    private var tree = MenuTree(emptyList(), menuIds)
     private val revision = AtomicLong(1)
     private val activeIcon = loadIcon(greyscale = false)
     private val inactiveIcon = loadIcon(greyscale = true)
@@ -219,8 +277,18 @@ class StatusNotifierTray private constructor(
             if (old.active != newState.active) connection.sendMessage(StatusNotifierItemInterface.NewIcon(ITEM_PATH))
             if (old.tooltip != newState.tooltip) connection.sendMessage(StatusNotifierItemInterface.NewToolTip(ITEM_PATH))
             if (old.menu != newState.menu) {
-                tree = MenuTree(newState.menu)
-                connection.sendMessage(DBusMenuInterface.LayoutUpdated(MENU_PATH, UInt32(revision.incrementAndGet()), ROOT_ID))
+                val previous = tree
+                val current = MenuTree(newState.menu, menuIds)
+                tree = current
+                val diff = current.diff(previous)
+                if (diff.structureChanged) {
+                    connection.sendMessage(DBusMenuInterface.LayoutUpdated(MENU_PATH, UInt32(revision.incrementAndGet()), ROOT_ID))
+                } else if (diff.changedIds.isNotEmpty()) {
+                    // Labels and enabled states only (traffic, status): updated
+                    // in place, so an open menu stays open.
+                    val updated = diff.changedIds.map { MenuItemProperties(it, current.properties(current.node(it)!!)) }
+                    connection.sendMessage(DBusMenuInterface.ItemsPropertiesUpdated(MENU_PATH, updated, emptyList()))
+                }
             }
         } catch (_: Exception) {
             // The shell went away; it will query the new state when it comes back.

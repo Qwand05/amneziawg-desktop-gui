@@ -228,10 +228,12 @@ private fun trayState(
         onShowWindow()
         if (app.currentScreen != screen) app.navigate(screen)
     }
+    // Keys keep each entry's dbusmenu id stable while labels change and
+    // entries come and go (the traffic line, tunnels added or removed).
     val menu = buildList {
-        add(TrayMenuEntry.Action(if (windowVisible) Strings.TRAY_HIDE else Strings.TRAY_SHOW, onClick = onToggleWindow))
+        add(TrayMenuEntry.Action(if (windowVisible) Strings.TRAY_HIDE else Strings.TRAY_SHOW, key = "window", onClick = onToggleWindow))
         add(TrayMenuEntry.Separator)
-        if (tunnels.isEmpty()) add(TrayMenuEntry.Action(Strings.TRAY_NO_TUNNELS, enabled = false) {})
+        if (tunnels.isEmpty()) add(TrayMenuEntry.Action(Strings.TRAY_NO_TUNNELS, enabled = false, key = "none") {})
         tunnels.forEach { tunnel ->
             val isUp = tunnel.state == Tunnel.State.UP
             val status = tunnelStatusText(tunnel) ?: Strings.TUNNEL_STATUS_DISCONNECTED
@@ -239,24 +241,24 @@ private fun trayState(
                 // Traffic so far, once the first statistics have been read.
                 tunnel.statistics?.takeIf { isUp }?.let { stats ->
                     val transfer = Strings.transferRxTx(QuantityFormatter.formatBytes(stats.totalRx()), QuantityFormatter.formatBytes(stats.totalTx()))
-                    add(TrayMenuEntry.Action(transfer, enabled = false) {})
+                    add(TrayMenuEntry.Action(transfer, enabled = false, key = "traffic") {})
                     add(TrayMenuEntry.Separator)
                 }
-                add(TrayMenuEntry.Action(if (isUp) Strings.DISCONNECT else Strings.CONNECT, enabled = !tunnel.isBusy) {
+                add(TrayMenuEntry.Action(if (isUp) Strings.DISCONNECT else Strings.CONNECT, enabled = !tunnel.isBusy, key = "toggle") {
                     app.toggleTunnel(tunnel, !isUp)
                 })
-                add(TrayMenuEntry.Action(Strings.SHOW_DETAILS) { onShowWindow(); app.openTunnel(tunnel) })
-                add(TrayMenuEntry.Action(Strings.CREATE_SHORTCUT) { app.createDesktopShortcut(tunnel) })
+                add(TrayMenuEntry.Action(Strings.SHOW_DETAILS, key = "details") { onShowWindow(); app.openTunnel(tunnel) })
+                add(TrayMenuEntry.Action(Strings.CREATE_SHORTCUT, key = "shortcut") { app.createDesktopShortcut(tunnel) })
             }
-            add(TrayMenuEntry.Submenu("${tunnel.name} — $status", children = children))
+            add(TrayMenuEntry.Submenu("${tunnel.name} — $status", key = "tunnel:${tunnel.name}", children = children))
         }
         add(TrayMenuEntry.Separator)
-        add(TrayMenuEntry.Action(Strings.TRAY_DISCONNECT_ALL, enabled = up.isNotEmpty()) { app.disconnectAll() })
+        add(TrayMenuEntry.Action(Strings.TRAY_DISCONNECT_ALL, enabled = up.isNotEmpty(), key = "disconnect-all") { app.disconnectAll() })
         add(TrayMenuEntry.Separator)
-        add(TrayMenuEntry.Action(Strings.SETTINGS) { open(Screen.Settings) })
-        add(TrayMenuEntry.Action(Strings.LOG_VIEWER_PREF_TITLE) { open(Screen.LogViewer) })
+        add(TrayMenuEntry.Action(Strings.SETTINGS, key = "settings") { open(Screen.Settings) })
+        add(TrayMenuEntry.Action(Strings.LOG_VIEWER_PREF_TITLE, key = "log") { open(Screen.LogViewer) })
         add(TrayMenuEntry.Separator)
-        add(TrayMenuEntry.Action(Strings.TRAY_QUIT, onClick = onQuit))
+        add(TrayMenuEntry.Action(Strings.TRAY_QUIT, key = "quit", onClick = onQuit))
     }
     val tooltip = if (up.isEmpty()) Strings.TRAY_DISCONNECTED else Strings.trayConnected(up.map { it.name })
     return TrayState(tooltip, up.isNotEmpty(), menu)
