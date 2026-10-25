@@ -117,6 +117,13 @@ object Strings {
     val SHOW_QR_CODE get() = t("show_qr_code")
     val EXPORT_CONFIG get() = t("export_config")
     val SHOW_STATISTICS get() = t("show_statistics")
+
+    // Desktop shortcuts
+    val CREATE_SHORTCUT get() = t("create_shortcut")
+    val SHORTCUT_UNAVAILABLE get() = t("shortcut_unavailable")
+    fun shortcutCreated(path: String) = f("shortcut_created", path)
+    fun shortcutError(error: String) = f("shortcut_error", error)
+    fun tunnelNotFound(name: String) = f("tunnel_not_found", name)
     fun transferRxTx(rx: String, tx: String) = f("transfer_rx_tx", rx, tx)
     fun latestHandshakeAgo(ago: String) = f("latest_handshake_ago", ago)
     fun persistentKeepaliveSuffix(count: Int) = table.plural("persistent_keepalive_seconds_suffix", count.toLong())

@@ -31,6 +31,8 @@ with the AmneziaWG tools should work too.
   - left-click the icon to show or hide the window;
   - the right-click menu switches tunnels on and off directly;
   - the icon is in color while a tunnel is connected and grey otherwise.
+- **Desktop shortcuts**: put a shortcut for a tunnel on your Desktop; double-clicking it connects
+  the tunnel, or disconnects it when it is up, without opening the window.
 - **Single instance**: launching the app again brings the running window back instead of starting a
   second copy.
 - **Settings**:
@@ -104,7 +106,7 @@ build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment var
 Install it with:
 
 ```bash
-sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.1_amd64.deb
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.2_amd64.deb
 ```
 
 The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
@@ -151,6 +153,24 @@ X-GNOME-Autostart-enabled=true
 ```
 
 `--hidden` starts the app without showing the window. It is ignored when no tray is available.
+
+### Desktop shortcuts
+
+Right-click a tunnel and choose **Create desktop shortcut** (or use the button on the tunnel's
+details screen). This puts `amnezia-awg-<tunnel>.desktop` on your Desktop, with the tunnel's name
+and the app's icon. Double-clicking it connects the tunnel, or disconnects it when it is up. If the
+app is already running, the shortcut asks it over D-Bus; otherwise the app starts in the tray and
+switches the tunnel once it has loaded. On failure the window comes up with the error message.
+
+The shortcut runs the installed launcher with `--toggle <tunnel>`, so it needs the app installed
+from the `.deb` package. You can use the same flag from your own scripts or key bindings:
+
+```bash
+/opt/amnezia-awg/bin/AmneziaWG --toggle office
+```
+
+KDE Plasma trusts the shortcut because it is executable; on GNOME it is marked *Allow Launching*
+when `gio` is available, otherwise right-click the icon and allow it once.
 
 ### Live statistics
 

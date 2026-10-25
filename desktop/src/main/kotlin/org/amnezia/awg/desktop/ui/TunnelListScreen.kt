@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
@@ -88,19 +89,6 @@ import org.amnezia.awg.desktop.util.Strings
 import org.amnezia.awg.desktop.util.TunnelImporter
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
-
-/** Toggle [tunnel] and report failures, like `BaseFragment.setTunnelState`. */
-fun AppState.toggleTunnel(tunnel: ObservableTunnel, checked: Boolean) {
-    scope.launch {
-        try {
-            tunnel.setStateAsync(Tunnel.State.of(checked))
-        } catch (e: Throwable) {
-            val error = ErrorMessages[e]
-            AppLog.e("Tunnels", "Switching ${tunnel.name} ${if (checked) "on" else "off"} failed: $error")
-            showSnackbar((if (checked) Strings.errorUp(error) else Strings.errorDown(error)))
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -417,6 +405,7 @@ private fun TunnelContextMenu(
         }
         ContextMenuItem(Strings.EXPORT_CONFIG, Icons.Default.Save) { withConfig { app.exportConfig(tunnel, it) } }
         ContextMenuItem(Strings.SHOW_QR_CODE, Icons.Default.QrCode2) { withConfig(onShowQrCode) }
+        ContextMenuItem(Strings.CREATE_SHORTCUT, Icons.Default.AddToHomeScreen) { onDismiss(); app.createDesktopShortcut(tunnel) }
         ContextMenuSeparator()
         ContextMenuItem(
             if (isSelected) Strings.DESELECT else Strings.SELECT,

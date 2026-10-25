@@ -38,6 +38,8 @@ import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.first
 import org.amnezia.awg.backend.Tunnel
 import org.amnezia.awg.desktop.backend.AwgQuickBackend
 import org.amnezia.awg.desktop.tray.SingleInstance
@@ -45,6 +47,7 @@ import org.amnezia.awg.desktop.tray.StatusNotifierTray
 import org.amnezia.awg.desktop.tray.TrayMenuEntry
 import org.amnezia.awg.desktop.tray.TrayState
 import org.amnezia.awg.desktop.ui.toggleTunnel
+import org.amnezia.awg.desktop.ui.toggleTunnelNamed
 import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.BuildInfo
 import org.amnezia.awg.desktop.model.AppState
@@ -66,6 +69,9 @@ private val TWO_PANE_MIN_WIDTH = 760.dp
 /**
  * Command line flags:
  *  - `--hidden`: start in the tray without showing the window (for autostart).
+ *  - `--toggle <name>`: connect the tunnel if it is down, disconnect it otherwise
+ *    (desktop shortcuts). A running instance does it; otherwise the app starts
+ *    in the tray and switches the tunnel once the list has loaded.
  */
 fun main(args: Array<String>) {
     // Crashes end up in the log file, which outlives the process.
@@ -83,12 +89,22 @@ fun main(args: Array<String>) {
 
     val windowVisible = mutableStateOf(true)
     val showWindow = { windowVisible.value = true }
+    val toggle = toggleArgument(args)
+    // Tunnels to toggle: the command line's, then those forwarded by later launches.
+    val toggleRequests = Channel<String>(Channel.BUFFERED)
+    if (toggle != null) toggleRequests.trySend(toggle)
 
-    // A second launch only asks the running instance to show its window.
-    val instance = when (val result = SingleInstance.acquire(showWindow)) {
+    // A second launch only asks the running instance to show its window (or to toggle a tunnel).
+    val instance = when (
+        val result = SingleInstance.acquire(
+            onShow = showWindow,
+            onToggleTunnel = { toggleRequests.trySend(it) },
+            forward = { remote -> if (toggle != null) remote.ToggleTunnel(toggle) else remote.Show() },
+        )
+    ) {
         is SingleInstance.Result.Acquired -> result.instance
         SingleInstance.Result.AlreadyRunning -> {
-            AppLog.i("App", "Already running; asked the running instance to show its window")
+            AppLog.i("App", "Already running; asked the running instance to ${if (toggle != null) "toggle $toggle" else "show its window"}")
             return
         }
         SingleInstance.Result.NoBus -> null
@@ -109,7 +125,8 @@ fun main(args: Array<String>) {
             else -> "System tray: none available"
         },
     )
-    if ("--hidden" in args && app.trayAvailable) windowVisible.value = false
+    // A shortcut should switch its tunnel from the tray, not pop the window up.
+    if (("--hidden" in args || toggle != null) && app.trayAvailable) windowVisible.value = false
 
     application {
         val windowState = rememberWindowState(size = DpSize(960.dp, 720.dp))
@@ -125,6 +142,9 @@ fun main(args: Array<String>) {
             app.start()
             if (!AwgQuickBackend.hasTools())
                 app.showSnackbar(Strings.TOOLS_MISSING)
+            // Shortcut requests wait for the tunnel list; a failure shows the window with the error.
+            snapshotFlow { app.tunnelManager.loaded }.first { it }
+            for (name in toggleRequests) app.toggleTunnelNamed(name, onFailure = showWindow)
         }
 
         val trayState by remember {
@@ -175,6 +195,15 @@ fun main(args: Array<String>) {
             }
         }
     }
+}
+
+/** The tunnel named by `--toggle <name>` or `--toggle=<name>`, if any. */
+private fun toggleArgument(args: Array<String>): String? {
+    args.forEachIndexed { i, arg ->
+        if (arg == "--toggle") return args.getOrNull(i + 1)?.takeIf { !Tunnel.isNameInvalid(it) }
+        if (arg.startsWith("--toggle=")) return arg.substringAfter('=').takeIf { !Tunnel.isNameInvalid(it) }
+    }
+    return null
 }
 
 /** Tray icon contents: show/hide, one checkable entry per tunnel, quit. */

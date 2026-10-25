@@ -17,12 +17,16 @@ import javax.swing.SwingUtilities
 interface DesktopAppInterface : DBusInterface {
     /** Bring the running instance's window to the front. */
     fun Show()
+
+    /** Connect the tunnel called [name] if it is down, disconnect it otherwise (desktop shortcuts). */
+    fun ToggleTunnel(name: String)
 }
 
 /**
  * Keeps the application single-instance: with "close to tray", launching it
  * again from the menu must show the hidden window rather than start a second
- * copy with a second tray icon.
+ * copy with a second tray icon. A desktop shortcut's `--toggle` is forwarded
+ * the same way.
  */
 class SingleInstance private constructor(private val connection: DBusConnection) : AutoCloseable {
     override fun close() {
@@ -38,11 +42,16 @@ class SingleInstance private constructor(private val connection: DBusConnection)
         private const val PATH = "/org/amnezia/awg/Desktop"
 
         /**
-         * Claim the instance. Returns null after asking an already running
-         * instance to show itself (the caller should then exit). Without a
-         * session bus the check is skipped and a dummy instance is returned.
+         * Claim the instance. When another instance is already running,
+         * [forward] is given its remote interface (by default to show its
+         * window) and [Result.AlreadyRunning] is returned, so the caller
+         * should exit. Without a session bus the check is skipped.
          */
-        fun acquire(onShow: () -> Unit): Result {
+        fun acquire(
+            onShow: () -> Unit,
+            onToggleTunnel: (String) -> Unit,
+            forward: (DesktopAppInterface) -> Unit = { it.Show() },
+        ): Result {
             val connection = try {
                 DBusConnectionBuilder.forSessionBus().withShared(false).build()
             } catch (_: Exception) {
@@ -57,12 +66,14 @@ class SingleInstance private constructor(private val connection: DBusConnection)
                 connection.exportObject(PATH, object : DesktopAppInterface {
                     override fun getObjectPath() = PATH
                     override fun Show() = SwingUtilities.invokeLater(onShow)
+                    override fun ToggleTunnel(name: String) = SwingUtilities.invokeLater { onToggleTunnel(name) }
                 })
                 Result.Acquired(SingleInstance(connection))
             } catch (_: Exception) {
                 try {
-                    connection.getRemoteObject(BUS_NAME, PATH, DesktopAppInterface::class.java, false).Show()
-                } catch (_: Exception) {
+                    forward(connection.getRemoteObject(BUS_NAME, PATH, DesktopAppInterface::class.java, false))
+                } catch (e: Exception) {
+                    AppLog.w("SingleInstance", "Could not reach the running instance: $e")
                 }
                 connection.close()
                 Result.AlreadyRunning

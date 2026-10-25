@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Save
@@ -87,6 +88,7 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
                     TooltipIconButton(Icons.Default.Save, Strings.EXPORT_CONFIG, enabled = config != null) {
                         app.exportConfig(tunnel, config!!)
                     }
+                    TooltipIconButton(Icons.Default.AddToHomeScreen, Strings.CREATE_SHORTCUT) { app.createDesktopShortcut(tunnel) }
                     TooltipIconButton(Icons.Default.Edit, Strings.EDIT) { app.navigate(Screen.TunnelEditor(tunnel)) }
                     TunnelToggle(tunnel) { app.toggleTunnel(tunnel, it) }
                 },
