@@ -5,18 +5,26 @@
 package org.amnezia.awg.desktop.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
+import com.google.zxing.WriterException
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -120,11 +128,36 @@ fun AppState.exportConfig(tunnel: ObservableTunnel, config: Config) {
 
 @Composable
 fun QrCodeDialog(title: String, config: Config, onDismiss: () -> Unit) {
-    val image = remember(config) { qrCode(config.toAwgQuickString()) }
+    // Encoded off the UI thread. A config past the QR capacity (about 2,900
+    // characters) makes zxing throw, which must not happen during composition.
+    val result by produceState<Result<ImageBitmap>?>(null, config) {
+        value = withContext(Dispatchers.Default) {
+            val text = config.toAwgQuickString()
+            runCatching { qrCode(text) }.onFailure {
+                AppLog.w("QrCode", "Could not encode the ${text.length}-character config of $title: $it")
+            }
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Image(image, contentDescription = Strings.SHOW_QR_CODE, modifier = Modifier.size(360.dp)) },
+        text = {
+            Box(Modifier.size(360.dp), contentAlignment = Alignment.Center) {
+                when (val encoded = result) {
+                    null -> CircularProgressIndicator()
+                    else -> encoded.fold(
+                        onSuccess = { Image(it, contentDescription = Strings.SHOW_QR_CODE, modifier = Modifier.fillMaxSize()) },
+                        onFailure = {
+                            Text(
+                                if (it is WriterException) Strings.QR_CODE_TOO_LARGE else ErrorMessages[it],
+                                Modifier.padding(16.dp),
+                                textAlign = TextAlign.Center,
+                            )
+                        },
+                    )
+                }
+            }
+        },
         confirmButton = { TextButton(onClick = onDismiss) { Text(Strings.CLOSE) } },
     )
 }

@@ -117,6 +117,7 @@ object Strings {
     val SHOW_QR_CODE get() = t("show_qr_code")
     val EXPORT_CONFIG get() = t("export_config")
     val SHOW_STATISTICS get() = t("show_statistics")
+    val QR_CODE_TOO_LARGE get() = t("qr_code_too_large")
 
     // Desktop shortcuts
     val CREATE_SHORTCUT get() = t("create_shortcut")

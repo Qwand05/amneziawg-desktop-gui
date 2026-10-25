@@ -43,6 +43,8 @@ class ScreensRenderTest {
         File(AppPaths.configDir, "office2.conf").writeText(SAMPLE)
         // Enough tunnels for the list to scroll; they sort after the two above.
         for (i in 1..12) File(AppPaths.configDir, "tunnel$i.conf").writeText(SAMPLE)
+        // Too many AllowedIPs for a QR code; sorts last so the other screenshots keep their rows.
+        File(AppPaths.configDir, "zz-huge.conf").writeText(HUGE)
 
         val app = onEdt { AppState().also { it.start() } }
         waitUntil { onEdt { app.tunnelManager.loaded } }
@@ -98,6 +100,10 @@ class ScreensRenderTest {
         onEdt { app.openTunnel(tunnel) }
         shot("detail")
         shot("detail-narrow", width = 480)
+        // The QR button of the detail pane's top bar, on a config too large for a QR code.
+        onEdt { app.openTunnel(app.tunnelManager.tunnels.first { it.name == "zz-huge" }) }
+        shot("qr-too-large", clicks = listOf(Click(Offset(736f, 32f))))
+        onEdt { app.openTunnel(tunnel) }
         onEdt { app.navigate(Screen.TunnelEditor(tunnel)) }
         shot("editor")
         onEdt { app.popBackStack(); app.navigate(Screen.Settings) }
@@ -159,6 +165,13 @@ class ScreensRenderTest {
     }
 
     private companion object {
+        /** [SAMPLE] with 2,090 AllowedIPs, about 30 KB: far past what a QR code holds. */
+        val HUGE: String
+            get() = SAMPLE.replace(
+                "AllowedIPs = 0.0.0.0/0",
+                "AllowedIPs = " + (0 until 2090).joinToString(", ") { "10.${it / 256}.${it % 256}.0/24" },
+            ).also { check(it != SAMPLE) }
+
         val SAMPLE = """
             [Interface]
             PrivateKey = ${org.amnezia.awg.crypto.KeyPair().privateKey.toBase64()}
