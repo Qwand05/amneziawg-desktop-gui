@@ -88,7 +88,7 @@ JDK 21 even if your default `java` is newer:
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 ```
 
-Run the app:
+Run the app (Desktop shortcuts don't work):
 
 ```bash
 ./gradlew :desktop:run
