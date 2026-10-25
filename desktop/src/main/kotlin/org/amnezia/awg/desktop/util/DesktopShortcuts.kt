@@ -6,8 +6,6 @@ package org.amnezia.awg.desktop.util
 
 import org.amnezia.awg.backend.Tunnel
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 
 /**
@@ -52,7 +50,7 @@ object DesktopShortcuts {
         file.writeText(entry(tunnelName, launcher))
         // Desktops only launch .desktop files they consider trusted: KDE wants
         // the executable bit, GNOME its own "trusted" attribute.
-        Files.setPosixFilePermissions(file.toPath(), PosixFilePermissions.fromString("rwxr-xr-x"))
+        FilePermissions.setExecutable(file.toPath())
         markTrusted(file)
         return file
     }

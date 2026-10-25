@@ -37,12 +37,12 @@ import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.DesktopShortcuts
 import org.amnezia.awg.desktop.util.ErrorMessages
 import org.amnezia.awg.desktop.util.FileDialogs
+import org.amnezia.awg.desktop.util.FilePermissions
 import org.amnezia.awg.desktop.util.Strings
 import java.awt.image.BufferedImage
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
-import java.nio.file.attribute.PosixFilePermissions
 
 /*
  * Tunnel actions shared by the detail screen, the list's context menu, the
@@ -122,8 +122,7 @@ fun AppState.exportConfig(tunnel: ObservableTunnel, config: Config) {
     val target = FileDialogs.saveFile(Strings.EXPORT_CONFIG, "${tunnel.name}.conf") ?: return
     try {
         val path = target.toPath()
-        if (!Files.exists(path))
-            Files.createFile(path, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))
+        if (!Files.exists(path)) Files.createFile(path, *FilePermissions.ownerOnly)
         Files.write(
             path,
             config.toAwgQuickString().toByteArray(StandardCharsets.UTF_8),

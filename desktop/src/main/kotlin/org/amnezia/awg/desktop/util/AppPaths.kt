@@ -20,19 +20,26 @@ import java.util.Properties
 object AppPaths {
     const val APP_DIR_NAME = "amnezia-awg"
 
+    val isWindows: Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows")
+
+    /**
+     * The XDG variable, else the Windows one on Windows (`%APPDATA%`,
+     * `%LOCALAPPDATA%`), else [fallback] under the home directory.
+     */
+    private fun base(xdgVariable: String, windowsVariable: String, fallback: String): String =
+        System.getenv(xdgVariable)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(windowsVariable)?.takeIf { isWindows && it.isNotBlank() }
+            ?: File(System.getProperty("user.home"), fallback).absolutePath
+
     val configDir: File by lazy {
-        val base = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
-            ?: File(System.getProperty("user.home"), ".config").absolutePath
-        File(base, APP_DIR_NAME).apply { mkdirs() }
+        File(base("XDG_CONFIG_HOME", "APPDATA", ".config"), APP_DIR_NAME).apply { mkdirs() }
     }
 
     val settingsFile: File get() = File(configDir, "settings.properties")
 
     /** Logs and other state that may be lost: `$XDG_STATE_HOME/amnezia-awg`. */
     val stateDir: File by lazy {
-        val base = System.getenv("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }
-            ?: File(System.getProperty("user.home"), ".local/state").absolutePath
-        File(base, APP_DIR_NAME).apply { mkdirs() }
+        File(base("XDG_STATE_HOME", "LOCALAPPDATA", ".local/state"), APP_DIR_NAME).apply { mkdirs() }
     }
 
     /** Directory holding exported archives and QR images by default. */

@@ -51,6 +51,9 @@ class AppState {
     val backend = AwgQuickBackend(AppPaths.configDir).apply {
         multipleTunnels = prefs.getBoolean(Prefs.KEY_MULTIPLE_TUNNELS, false)
     }
+
+    /** Whether tunnels can be switched at all: amneziawg-tools is installed (never on Windows). */
+    val toolsAvailable: Boolean = AwgQuickBackend.hasTools()
     val tunnelManager = TunnelManager(FileConfigStore(AppPaths.configDir), backend, prefs) {
         AppLog.e("TunnelManager", ErrorMessages[it], it)
         showSnackbar(ErrorMessages[it])

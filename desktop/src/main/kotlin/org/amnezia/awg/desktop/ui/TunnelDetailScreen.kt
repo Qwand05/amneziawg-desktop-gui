@@ -90,7 +90,7 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
                     }
                     TooltipIconButton(Icons.Default.AddToHomeScreen, Strings.CREATE_SHORTCUT) { app.createDesktopShortcut(tunnel) }
                     TooltipIconButton(Icons.Default.Edit, Strings.EDIT) { app.navigate(Screen.TunnelEditor(tunnel)) }
-                    TunnelToggle(tunnel) { app.toggleTunnel(tunnel, it) }
+                    TunnelToggle(tunnel, enabled = app.toolsAvailable) { app.toggleTunnel(tunnel, it) }
                 },
             )
         },

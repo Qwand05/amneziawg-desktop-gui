@@ -11,7 +11,6 @@ import java.awt.Frame
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermissions
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -47,10 +46,7 @@ object FileDialogs {
     fun exportZip(configs: List<Pair<ObservableTunnel, Config>>, target: File) {
         if (configs.isEmpty()) throw IllegalArgumentException(Strings.NO_TUNNELS_ERROR)
         target.delete()
-        Files.createFile(
-            target.toPath(),
-            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")),
-        )
+        Files.createFile(target.toPath(), *FilePermissions.ownerOnly)
         ZipOutputStream(target.outputStream()).use { zip ->
             for ((tunnel, config) in configs) {
                 zip.putNextEntry(ZipEntry("${tunnel.name}.conf"))

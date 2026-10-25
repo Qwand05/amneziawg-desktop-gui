@@ -42,7 +42,6 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import org.amnezia.awg.backend.Tunnel
-import org.amnezia.awg.desktop.backend.AwgQuickBackend
 import org.amnezia.awg.desktop.tray.SingleInstance
 import org.amnezia.awg.desktop.tray.StatusNotifierTray
 import org.amnezia.awg.desktop.tray.TrayMenuEntry
@@ -145,7 +144,7 @@ fun main(args: Array<String>) {
 
         LaunchedEffect(Unit) {
             app.start()
-            if (!AwgQuickBackend.hasTools())
+            if (!app.toolsAvailable)
                 app.showSnackbar(Strings.TOOLS_MISSING)
             // Shortcut requests wait for the tunnel list; a failure shows the window with the error.
             snapshotFlow { app.tunnelManager.loaded }.first { it }
@@ -244,7 +243,7 @@ private fun trayState(
                     add(TrayMenuEntry.Action(transfer, enabled = false, key = "traffic") {})
                     add(TrayMenuEntry.Separator)
                 }
-                add(TrayMenuEntry.Action(if (isUp) Strings.DISCONNECT else Strings.CONNECT, enabled = !tunnel.isBusy, key = "toggle") {
+                add(TrayMenuEntry.Action(if (isUp) Strings.DISCONNECT else Strings.CONNECT, enabled = !tunnel.isBusy && app.toolsAvailable, key = "toggle") {
                     app.toggleTunnel(tunnel, !isUp)
                 })
                 add(TrayMenuEntry.Action(Strings.SHOW_DETAILS, key = "details") { onShowWindow(); app.openTunnel(tunnel) })

@@ -8,12 +8,12 @@ import org.amnezia.awg.backend.BackendException
 import org.amnezia.awg.backend.Tunnel
 import org.amnezia.awg.config.Config
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.FilePermissions
 import org.amnezia.awg.desktop.util.Strings
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 
 /**
@@ -49,8 +49,9 @@ class AwgQuickBackend(private val configDir: File) : Backend {
         return RootHelper.start().also { helperInstance = it }
     }
 
+    /** Without amneziawg-tools (or on Windows) nothing can be running; asking would only raise errors. */
     override val runningTunnelNames: Set<String>
-        get() = AwgShowParser.parseInterfaces(runUnprivileged("awg", "show", "interfaces"))
+        get() = if (hasTools()) AwgShowParser.parseInterfaces(runUnprivileged("awg", "show", "interfaces")) else emptySet()
 
     override fun getState(tunnel: Tunnel): Tunnel.State =
         Tunnel.State.of(runningTunnelNames.contains(tunnel.name))
@@ -180,7 +181,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     private fun writeConfig(name: String, config: Config): File {
         val file = configFile(name)
         configDir.mkdirs()
-        val tmp = Files.createTempFile(configDir.toPath(), ".$name", ".tmp", OWNER_ONLY)
+        val tmp = Files.createTempFile(configDir.toPath(), ".$name", ".tmp", *FilePermissions.ownerOnly)
         Files.write(tmp, config.toAwgQuickString().toByteArray(StandardCharsets.UTF_8))
         Files.move(tmp, file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         return file
@@ -237,14 +238,13 @@ class AwgQuickBackend(private val configDir: File) : Backend {
          * with thousands of extra AllowedIPs entries.
          */
         private const val UP_DOWN_TIMEOUT_SECONDS = 600L
-        private val OWNER_ONLY = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"))
 
         /** Whether the AmneziaWG kernel module is loaded on this host. */
         fun hasKernelSupport(): Boolean = File("/sys/module/amneziawg").exists()
 
         /** Whether `awg-quick` is on the PATH. */
         fun hasTools(): Boolean =
-            System.getenv("PATH").orEmpty().split(':').any { File(it, "awg-quick").canExecute() }
+            System.getenv("PATH").orEmpty().split(File.pathSeparatorChar).any { File(it, "awg-quick").canExecute() }
 
         /** Run a command as the current user and return its standard output. */
         private fun runUnprivileged(vararg command: String): String {

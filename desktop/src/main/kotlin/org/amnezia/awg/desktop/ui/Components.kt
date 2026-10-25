@@ -123,11 +123,11 @@ fun copyToClipboard(text: String) {
 
 /** Switch that reflects (and toggles) a tunnel's state, with a spinner while busy. */
 @Composable
-fun TunnelToggle(tunnel: ObservableTunnel, onToggle: (Boolean) -> Unit) {
+fun TunnelToggle(tunnel: ObservableTunnel, enabled: Boolean = true, onToggle: (Boolean) -> Unit) {
     if (tunnel.isBusy) {
         CircularProgressIndicator(Modifier.padding(horizontal = 14.dp).size(24.dp), strokeWidth = 3.dp)
     } else {
-        Switch(checked = tunnel.state == Tunnel.State.UP, onCheckedChange = onToggle)
+        Switch(checked = tunnel.state == Tunnel.State.UP, onCheckedChange = onToggle, enabled = enabled)
     }
 }
 

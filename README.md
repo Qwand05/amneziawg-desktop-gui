@@ -96,20 +96,42 @@ Run the app (Desktop shortcuts don't work):
 ./gradlew :desktop:run
 ```
 
-Build a `.deb` package (written to `desktop/build/compose/binaries/main/deb/`):
+Build the packages; each lands in its own folder under `desktop/build/compose/binaries/main/`:
 
-```bash
-./gradlew :desktop:packageDeb
-```
+| Command | Output | Notes |
+|---|---|---|
+| `./gradlew :desktop:packageDeb` | `deb/amnezia-awg_<version>_amd64.deb` | Debian, Ubuntu. |
+| `./gradlew :desktop:packageRpm` | `rpm/amnezia-awg-<version>-1.x86_64.rpm` | Fedora, openSUSE…; needs `rpmbuild` on the build machine (`sudo apt install rpm`). |
+| `./gradlew :desktop:packageTarGz` | `tar/amnezia-awg-<version>-linux-x64.tar.gz` | Portable: extract anywhere and run `bin/AmneziaWG`. Still needs amneziawg-tools and polkit on the system. |
+| `./gradlew :desktop:packageWindowsPortable` | `windows/amnezia-awg-<version>-windows-x64.zip` (and the unzipped folder next to it) | Portable, GUI only; see below. Add `-PwindowsJre=<Temurin 21 Windows x64 JRE zip>` to bundle a runtime. |
+| `./gradlew :desktop:packageAll` | all of the above | |
 
 The project still includes the Android modules, so Gradle needs an Android SDK to configure the
 build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment variable.
 
-Install it with:
+Install the `.deb` with:
 
 ```bash
 sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.2_amd64.deb
 ```
+
+or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.2-1.x86_64.rpm`.
+The portable tar.gz runs from wherever it is extracted (`bin/AmneziaWG`), with the same
+`--hidden` and `--toggle` flags; desktop shortcuts point at that extracted launcher, so don't move
+the folder afterwards. The RPM's launcher entry lacks the translated names and keywords that the
+`.deb` gets (only the `.deb` is patched after jpackage).
+
+**Windows (portable, GUI only).** jpackage can't cross-build, so `packageWindowsPortable`
+assembles the folder by hand: the application jars with Compose's Windows natives and
+`AmneziaWG.bat`, which starts the app without a console window (`--hidden` and `--toggle` work).
+The launcher uses a `runtime\` folder when one is bundled (`-PwindowsJre=<zip>` at build time, or
+unpack a Windows x64 JRE there yourself), otherwise `JAVA_HOME`, otherwise `javaw.exe` from the
+`PATH`; Java 21 or newer is required. The app runs on Windows: tunnel list, editor, import and
+export, QR codes, settings, languages and the log viewer, with data under `%APPDATA%\amnezia-awg`.
+What it can't do is connect a tunnel: the backend drives `awg-quick` through polkit, which only
+exists on Linux, so the switches are disabled there. A Windows backend on top of the official
+AmneziaWG Windows client would be needed for that. The build is assembled on Linux and hasn't been
+run on Windows here.
 
 The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
 only contains the Java modules listed in `desktop/build.gradle.kts`. If you add a dependency and

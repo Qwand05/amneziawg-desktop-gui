@@ -261,7 +261,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
                                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, maxLines = 2)
                                 }
                             }
-                            TunnelToggle(tunnel) { app.toggleTunnel(tunnel, it) }
+                            TunnelToggle(tunnel, enabled = app.toolsAvailable) { app.toggleTunnel(tunnel, it) }
 
                             contextMenu?.takeIf { it.first === tunnel }?.let { (_, position) ->
                                 val close = { contextMenu = null }
@@ -394,7 +394,7 @@ private fun TunnelContextMenu(
         ContextMenuItem(
             if (up) Strings.DISCONNECT else Strings.CONNECT,
             if (up) Icons.Default.LinkOff else Icons.Default.Link,
-            enabled = !tunnel.isBusy,
+            enabled = !tunnel.isBusy && app.toolsAvailable,
         ) { onDismiss(); app.toggleTunnel(tunnel, !up) }
         ContextMenuSeparator()
         ContextMenuItem(Strings.SHOW_DETAILS, Icons.Default.Info) { onDismiss(); app.openTunnel(tunnel) }
