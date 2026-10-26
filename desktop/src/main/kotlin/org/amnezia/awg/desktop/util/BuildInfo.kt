@@ -28,6 +28,9 @@ object BuildInfo {
     /** The project's repository (the `origin` remote), shown in Settings. */
     const val REPOSITORY_URL = "https://github.com/Qwand05/amneziawg-linux-gui"
 
+    /** The project this one is a fork of, credited in Settings as "Based on". */
+    const val UPSTREAM_REPOSITORY_URL = "https://github.com/amnezia-vpn/amneziawg-android"
+
     /**
      * Open [url] in the default browser: AWT's Desktop where it can browse
      * (Windows, GNOME), else `xdg-open`, which KDE needs under Wayland.

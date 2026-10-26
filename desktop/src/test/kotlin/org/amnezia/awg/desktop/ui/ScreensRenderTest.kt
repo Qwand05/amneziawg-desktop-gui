@@ -109,8 +109,8 @@ class ScreensRenderTest {
         shot("editor")
         onEdt { app.popBackStack(); app.navigate(Screen.Settings) }
         shot("settings", dark = true)
-        // Hovering the first contributor avatar (end of the "Source code" row) shows the name.
-        shot("settings-contributor-hover", clicks = listOf(Click(Offset(866f, 166f), hover = true)))
+        // Hovering the first avatar of the "Based on" row (the original project's authors) shows the name.
+        shot("settings-contributor-hover", clicks = listOf(Click(Offset(866f, 234f), hover = true)))
         onEdt { app.updateThemeColors(ThemeColors(accent = Color(0xFF1E88E5), status = Color(0xFFEF6C00))) }
         shot("settings-custom-colors")
         onEdt { app.updateThemeColors(ThemeColors()) }
@@ -160,17 +160,19 @@ class ScreensRenderTest {
     }
 
     /**
-     * Three cached contributors, as Settings would have them after fetching
-     * from GitHub (the tests never go online): two avatars, one without.
+     * Cached credits, as Settings would have them after fetching from GitHub
+     * (the tests never go online): one author of this fork, three of the
+     * original project, one of them without an avatar.
      */
     private fun seedContributors() {
         val dir = File(AppPaths.stateDir, "contributors").apply { deleteRecursively(); mkdirs() }
-        File(dir, "contributors.tsv").writeText(
-            "albexk\tAlex Example\thttps://github.com/albexk\n" +
-                "vkamn\t\thttps://github.com/vkamn\n" +
-                "Qwand05\t\thttps://github.com/Qwand05\n"
+        File(dir, "credits.tsv").writeText(
+            "fork\tQwand05\t\thttps://github.com/Qwand05\n" +
+                "upstream\talbexk\tAlex Example\thttps://github.com/albexk\n" +
+                "upstream\tvkamn\t\thttps://github.com/vkamn\n" +
+                "upstream\tNickVs2015\t\thttps://github.com/NickVs2015\n"
         )
-        for ((login, rgb) in listOf("albexk" to 0x1E88E5, "vkamn" to 0x43A047)) {
+        for ((login, rgb) in listOf("Qwand05" to 0x8E24AA, "albexk" to 0x1E88E5, "vkamn" to 0x43A047)) {
             val image = java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB)
             image.createGraphics().apply {
                 color = java.awt.Color(rgb)

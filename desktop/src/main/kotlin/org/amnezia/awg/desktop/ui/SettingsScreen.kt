@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import org.amnezia.awg.desktop.util.Contributor
 import org.amnezia.awg.desktop.util.Contributors
+import org.amnezia.awg.desktop.util.Credits
 import javax.imageio.ImageIO
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +75,7 @@ fun SettingsScreen(app: AppState) {
     var restoreOnStart by remember { mutableStateOf(prefs.getBoolean(Prefs.KEY_RESTORE_ON_BOOT, false)) }
     var multipleTunnels by remember { mutableStateOf(app.backend.multipleTunnels) }
     var exporting by remember { mutableStateOf(false) }
-    var contributors by remember { mutableStateOf(emptyList<Contributor>()) }
+    var credits by remember { mutableStateOf(Credits.NONE) }
 
     LaunchedEffect(Unit) {
         moduleVersion = runCatching { withContext(Dispatchers.IO) { app.backend.getVersion() } }
@@ -84,10 +85,10 @@ fun SettingsScreen(app: AppState) {
             ErrorMessages[e]
         }
     }
-    // The cached contributors at once, then fresh ones from GitHub at most once a day.
+    // The cached credits at once, then fresh ones from GitHub at most once a day.
     LaunchedEffect(Unit) {
-        contributors = withContext(Dispatchers.IO) { Contributors.cached() }
-        withContext(Dispatchers.IO) { Contributors.refreshIfStale() }?.let { contributors = it }
+        credits = withContext(Dispatchers.IO) { Contributors.cached() }
+        withContext(Dispatchers.IO) { Contributors.refreshIfStale() }?.let { credits = it }
     }
 
     fun openInBrowser(url: String) {
@@ -128,7 +129,8 @@ fun SettingsScreen(app: AppState) {
                     moduleVersion?.fold({ Strings.versionSummary(module, it) }, { Strings.versionSummaryUnknown(module) })
                         ?: Strings.versionSummaryChecking(module),
                 ) {}
-                SourceCodeRow(contributors, onOpen = ::openInBrowser)
+                RepositoryRow(Strings.SOURCE_CODE_TITLE, BuildInfo.REPOSITORY_URL, credits.fork, onOpen = ::openInBrowser)
+                RepositoryRow(Strings.BASED_ON_TITLE, BuildInfo.UPSTREAM_REPOSITORY_URL, credits.upstream, onOpen = ::openInBrowser)
                 ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
                 ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
                 ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}
@@ -212,20 +214,23 @@ private fun LanguageRow(app: AppState) {
     }
 }
 
-/** "Source code" with the repository link, and the contributors' avatars at the end of the row. */
+/**
+ * A repository link (this project's, or the one it is based on), with its
+ * contributors' avatars at the end of the row.
+ */
 @Composable
-private fun SourceCodeRow(contributors: List<Contributor>, onOpen: (String) -> Unit) {
+private fun RepositoryRow(title: String, url: String, contributors: List<Contributor>, onOpen: (String) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onOpen(BuildInfo.REPOSITORY_URL) }
+            .clickable { onOpen(url) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(Strings.SOURCE_CODE_TITLE, style = MaterialTheme.typography.bodyLarge)
-            Text(BuildInfo.REPOSITORY_URL, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (contributors.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

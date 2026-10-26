@@ -19,42 +19,65 @@ data class Contributor(val login: String, val name: String?, val profileUrl: Str
     val label: String get() = if (name.isNullOrBlank() || name == login) login else "$name ($login)"
 }
 
+/** Who Settings credits: this fork's own authors, and the authors of the project it was forked from. */
+data class Credits(val fork: List<Contributor>, val upstream: List<Contributor>) {
+    companion object {
+        val NONE = Credits(emptyList(), emptyList())
+    }
+}
+
 /**
- * The repository's contributors from GitHub's public API: who they are,
- * their names and their avatars. Fetched only when Settings is opened, at
- * most once a day, and cached in the state directory so the avatars show
- * offline too. Without a cache and a connection, there are none.
+ * Credits from GitHub's public API. The fork's own authors are those of the
+ * commits the fork has and the original project does not (the `compare`
+ * API), so history the fork merely inherited does not count, while someone
+ * from the original project who commits to the fork does. The original's
+ * authors get their own row, from its contributors list.
+ *
+ * Fetched only when Settings is opened, at most once a day, and cached with
+ * the avatars in the state directory, so they show offline too. Without a
+ * cache and a connection there are none.
  */
 object Contributors {
     private const val API = "https://api.github.com"
     private const val MAX = 12
     private val REFRESH_AFTER_MILLIS = TimeUnit.HOURS.toMillis(24)
     private val LOGIN = Regex("[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")
+    private val REPOSITORY = Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+    private val BRANCH = Regex("[A-Za-z0-9._/-]+")
 
     /** Set (as in the tests) to never contact GitHub. */
     private val offline: Boolean get() = System.getProperty("amnezia.awg.offline") == "true"
 
     private val dir: File get() = File(AppPaths.stateDir, "contributors")
-    private val listFile: File get() = File(dir, "contributors.tsv")
+
+    /** One "group, login, name, profile URL" line per person, tab separated; the group is "fork" or "upstream". */
+    private val listFile: File get() = File(dir, "credits.tsv")
 
     /** "Qwand05/amneziawg-linux-gui" */
     private val repository: String get() = BuildInfo.REPOSITORY_URL.removePrefix("https://github.com/").trimEnd('/')
 
-    /** The cached list (one "login, name, profile URL" line each, tab separated); empty without one. */
-    fun cached(): List<Contributor> {
+    /** The cached credits; none without a cache. */
+    fun cached(): Credits {
         val file = listFile
-        if (!file.isFile) return emptyList()
-        return file.readLines(StandardCharsets.UTF_8).mapNotNull { line ->
+        if (!file.isFile) return Credits.NONE
+        val fork = ArrayList<Contributor>()
+        val upstream = ArrayList<Contributor>()
+        for (line in file.readLines(StandardCharsets.UTF_8)) {
             val parts = line.split('\t')
-            if (parts.size < 3 || !LOGIN.matches(parts[0])) return@mapNotNull null
-            Contributor(parts[0], parts[1].ifEmpty { null }, parts[2], File(dir, "${parts[0]}.img").takeIf { it.isFile })
+            if (parts.size < 4 || !LOGIN.matches(parts[1])) continue
+            val contributor = Contributor(parts[1], parts[2].ifEmpty { null }, parts[3], File(dir, "${parts[1]}.img").takeIf { it.isFile })
+            when (parts[0]) {
+                "fork" -> fork.add(contributor)
+                "upstream" -> upstream.add(contributor)
+            }
         }
+        return Credits(fork, upstream)
     }
 
     val isStale: Boolean get() = !listFile.isFile || System.currentTimeMillis() - listFile.lastModified() > REFRESH_AFTER_MILLIS
 
-    /** Fetches the list again when the cache is older than a day; null when nothing changed or GitHub is unreachable. */
-    fun refreshIfStale(): List<Contributor>? {
+    /** Fetches the credits again when the cache is older than a day; null when nothing changed or GitHub is unreachable. */
+    fun refreshIfStale(): Credits? {
         if (offline || !isStale) return null
         return try {
             refresh()
@@ -66,45 +89,96 @@ object Contributors {
         }
     }
 
-    private fun refresh(): List<Contributor> {
+    private fun refresh(): Credits {
         dir.mkdirs()
-        val users = parseContributors(String(get("$API/repos/$repository/contributors?per_page=$MAX", 1 shl 20), StandardCharsets.UTF_8))
-        val contributors = users.map { user ->
-            // The real name needs one more request per person; the login does without it.
-            val name = runCatching { parseUserName(String(get("$API/users/${user.login}", 1 shl 18), StandardCharsets.UTF_8)) }.getOrNull()
-            val avatar = File(dir, "${user.login}.img")
-            runCatching {
-                val separator = if ('?' in user.avatarUrl) '&' else '?'
-                writeAtomically(avatar, get("${user.avatarUrl}${separator}s=64", 1 shl 19))
-            }.onFailure { AppLog.w(TAG, "No avatar for ${user.login}: $it") }
-            Contributor(user.login, name, user.profileUrl, avatar.takeIf { it.isFile })
+        val repo = parseRepository(getText("$API/repos/$repository"))
+        val forkUsers: List<User>
+        val upstreamUsers: List<User>
+        if (repo.parent == null) {
+            // Not a fork: everyone in the history is this project's.
+            forkUsers = parseContributors(getText("$API/repos/$repository/contributors?per_page=$MAX"))
+            upstreamUsers = emptyList()
+        } else {
+            val head = repository.replace('/', ':') + ":" + repo.branch
+            val authors = ArrayList<User>()
+            // The commits only the fork has, 100 per page; GitHub lists at most 250.
+            for (page in 1..3) {
+                val compared = parseCompare(getText("$API/repos/${repo.parent}/compare/${repo.parentBranch}...$head?per_page=100&page=$page", 4 shl 20))
+                authors += compared.authors
+                if (compared.commitCount < 100) break
+            }
+            forkUsers = rankAuthors(authors).take(MAX)
+            upstreamUsers = parseContributors(getText("$API/repos/${repo.parent}/contributors?per_page=$MAX"))
         }
-        writeAtomically(listFile, contributors.joinToString("") { c ->
-            listOf(c.login, c.name.orEmpty(), c.profileUrl).joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ') } + "\n"
+
+        val people = (forkUsers + upstreamUsers).distinctBy { it.login }.associate { user -> user.login to fetchPerson(user) }
+        val credits = Credits(forkUsers.map { people.getValue(it.login) }, upstreamUsers.map { people.getValue(it.login) })
+        val lines = credits.fork.map { "fork" to it } + credits.upstream.map { "upstream" to it }
+        writeAtomically(listFile, lines.joinToString("") { (group, c) ->
+            listOf(group, c.login, c.name.orEmpty(), c.profileUrl).joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ') } + "\n"
         }.toByteArray(StandardCharsets.UTF_8))
-        // Avatars of people no longer listed.
-        val logins = contributors.map { it.login }.toSet()
-        dir.listFiles { f -> f.name.endsWith(".img") && f.name.removeSuffix(".img") !in logins }?.forEach { it.delete() }
-        AppLog.i(TAG, "Fetched ${contributors.size} contributor(s) from GitHub")
-        return contributors
+        // Avatars of people no longer listed, and the cache of version 1.2.2.
+        dir.listFiles { f -> f.name.endsWith(".img") && f.name.removeSuffix(".img") !in people }?.forEach { it.delete() }
+        File(dir, "contributors.tsv").delete()
+        AppLog.i(TAG, "Fetched ${credits.fork.size} contributor(s) of this fork and ${credits.upstream.size} of ${repo.parent ?: "nothing"} from GitHub")
+        return credits
     }
 
-    /** One entry of the contributors API. */
+    /** The real name (one more request; the login does without it) and the avatar. */
+    private fun fetchPerson(user: User): Contributor {
+        val name = runCatching { parseUserName(getText("$API/users/${user.login}", 1 shl 18)) }.getOrNull()
+        val avatar = File(dir, "${user.login}.img")
+        runCatching {
+            val separator = if ('?' in user.avatarUrl) '&' else '?'
+            writeAtomically(avatar, get("${user.avatarUrl}${separator}s=64", 1 shl 19))
+        }.onFailure { AppLog.w(TAG, "No avatar for ${user.login}: $it") }
+        return Contributor(user.login, name, user.profileUrl, avatar.takeIf { it.isFile })
+    }
+
+    /** A GitHub account: from the contributors list, or the author of a commit. */
     internal data class User(val login: String, val profileUrl: String, val avatarUrl: String)
+
+    /** From `GET /repos/{repo}`: its default branch and, for a fork, the original and its default branch. */
+    internal data class Repository(val branch: String, val parent: String?, val parentBranch: String?)
+
+    internal fun parseRepository(json: String): Repository {
+        val repo = MiniJson.parse(json) as? Map<*, *> ?: throw IOException("Unexpected repository data")
+        val branch = (repo["default_branch"] as? String)?.takeIf { BRANCH.matches(it) } ?: throw IOException("No default branch")
+        val parent = repo["parent"] as? Map<*, *>
+        val parentName = (parent?.get("full_name") as? String)?.takeIf { REPOSITORY.matches(it) }
+        val parentBranch = (parent?.get("default_branch") as? String)?.takeIf { BRANCH.matches(it) }
+        return if (parentName != null && parentBranch != null) Repository(branch, parentName, parentBranch) else Repository(branch, null, null)
+    }
+
+    /** From `GET /repos/{base}/compare/{base}...{head}`: one entry per commit whose author has a GitHub account. */
+    internal data class Compared(val authors: List<User>, val commitCount: Int)
+
+    internal fun parseCompare(json: String): Compared {
+        val commits = ((MiniJson.parse(json) as? Map<*, *>)?.get("commits") as? List<*>).orEmpty()
+        // A commit made with an email no GitHub account has has a null "author".
+        return Compared(commits.mapNotNull { (it as? Map<*, *>)?.get("author") as? Map<*, *> }.mapNotNull(::userOf), commits.size)
+    }
+
+    /** Each author once, most commits first; ties keep the order of the first commit. */
+    internal fun rankAuthors(authors: List<User>): List<User> =
+        authors.groupBy { it.login }.values.sortedByDescending { it.size }.map { it.first() }
 
     /** Accounts from `GET /repos/{repo}/contributors`, most commits first; anonymous entries have no account and are skipped. */
     internal fun parseContributors(json: String): List<User> =
-        (MiniJson.parse(json) as? List<*>).orEmpty().mapNotNull { item ->
-            val entry = item as? Map<*, *> ?: return@mapNotNull null
-            val login = entry["login"] as? String ?: return@mapNotNull null
-            val avatar = entry["avatar_url"] as? String ?: return@mapNotNull null
-            if (!LOGIN.matches(login) || !avatar.startsWith("https://")) return@mapNotNull null
-            User(login, entry["html_url"] as? String ?: "https://github.com/$login", avatar)
-        }
+        (MiniJson.parse(json) as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let(::userOf) }
+
+    private fun userOf(entry: Map<*, *>): User? {
+        val login = entry["login"] as? String ?: return null
+        val avatar = entry["avatar_url"] as? String ?: return null
+        if (!LOGIN.matches(login) || !avatar.startsWith("https://")) return null
+        return User(login, entry["html_url"] as? String ?: "https://github.com/$login", avatar)
+    }
 
     /** The "name" of `GET /users/{login}`, if set. */
     internal fun parseUserName(json: String): String? =
         ((MiniJson.parse(json) as? Map<*, *>)?.get("name") as? String)?.trim()?.ifEmpty { null }
+
+    private fun getText(url: String, maxBytes: Int = 1 shl 20): String = String(get(url, maxBytes), StandardCharsets.UTF_8)
 
     private fun get(url: String, maxBytes: Int): ByteArray {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
