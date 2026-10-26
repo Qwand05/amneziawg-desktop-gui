@@ -1,7 +1,7 @@
 AmneziaWG for Linux - portable Windows build
 ============================================
 
-Run AmneziaWG.bat. Nothing is installed; the folder holds the application
+Run AmneziaWG.exe. Nothing is installed; the folder holds the application
 (lib\) and this launcher. Settings and tunnel configurations are kept in
 %APPDATA%\amnezia-awg, the app's log in %LOCALAPPDATA%\amnezia-awg\app.log.
 
@@ -13,21 +13,26 @@ Windows x64 JRE so that runtime\bin\javaw.exe exists.
 
 Tunnels: they are run by the official AmneziaWG for Windows client, the
 same way it runs its own. The app looks for amneziawg.exe and awg.exe in
-  1. an amneziawg\ folder next to AmneziaWG.bat (a client you built),
+  1. an amneziawg\ folder next to AmneziaWG.exe (a client you built),
   2. C:\Program Files\AmneziaWG\ (the client's installer puts it there),
   3. the PATH.
 Without the client the app still works for editing, importing and
 exporting configurations, but the switches are disabled.
 
+The tunnel list shows this app's own tunnels (%APPDATA%\amnezia-awg).
+Tunnels created in the official client's window are stored encrypted in
+its protected folder, which no other program can read: export them there
+("Export all tunnels to zip") and import the zip here with the + button.
+
 Administrator rights: connecting and disconnecting a tunnel installs or
 removes its Windows service, which needs administrator rights, so Windows
 asks for approval (UAC) each time. To avoid that, and to see live traffic
-statistics and the client log, start AmneziaWG.bat with "Run as
+statistics and the client log, start AmneziaWG.exe with "Run as
 administrator".
 
 Tunnel services start automatically with Windows: a tunnel that is up
 when you shut down comes back after a reboot, even without this app.
 Disconnect it first if you don't want that.
 
-Options: AmneziaWG.bat --hidden starts in the tray;
-AmneziaWG.bat --toggle <tunnel> connects or disconnects a tunnel.
+Options: AmneziaWG.exe --hidden starts in the tray;
+AmneziaWG.exe --toggle <tunnel> connects or disconnects a tunnel.

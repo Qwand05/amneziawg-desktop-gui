@@ -43,6 +43,36 @@ class WindowsCommandsTest {
     }
 
     @Test
+    fun findsTunnelsInNetStartOutput() {
+        // `net start` on Russian Windows: translated header and footer, display names indented.
+        val output = """
+            Запущены следующие службы Windows:
+
+               AmneziaWG Manager
+               AmneziaWG Tunnel: Germany
+               AmneziaWG Tunnel: USATexas
+               DHCP-клиент
+               DNS-клиент
+
+            Команда выполнена успешно.
+
+        """.trimIndent().replace("\n", "\r\n")
+        assertEquals(setOf("Germany", "USATexas"), WindowsCommands.parseRunningTunnels(output))
+    }
+
+    @Test
+    fun findsTheConsoleCodePage() {
+        assertEquals("IBM866", WindowsCommands.charsetOfChcp("Текущая кодовая страница: 866\r\n")?.name())
+        assertEquals("IBM437", WindowsCommands.charsetOfChcp("Active code page: 437\r\n")?.name())
+        assertEquals("UTF-8", WindowsCommands.charsetOfChcp("Active code page: 65001")?.name())
+        assertEquals(null, WindowsCommands.charsetOfChcp("no number here"))
+        // What decoding sc's Russian message as 1251 instead of 866 looked like.
+        val bytes = "Ошибка".toByteArray(charset("IBM866"))
+        assertEquals("Ошибка", String(bytes, WindowsCommands.charsetOfChcp("866")!!))
+        assertTrue(String(bytes, charset("windows-1251")) != "Ошибка")
+    }
+
+    @Test
     fun recognisesElevationByIntegritySid() {
         val high = "Mandatory Label\\High Mandatory Level   Label   S-1-16-12288"
         val medium = "Mandatory Label\\Medium Mandatory Level Label   S-1-16-8192"

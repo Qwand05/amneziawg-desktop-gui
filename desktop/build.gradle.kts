@@ -3,7 +3,11 @@
  */
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.awt.Image
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
+import javax.imageio.ImageIO
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -175,7 +179,7 @@ val packageTarGz by tasks.registering(Tar::class) {
 /*
  * Windows: jpackage cannot cross-build, so the portable folder is assembled
  * by hand: the application jars with Compose's Windows natives and a
- * launcher script that uses the Java 21 installed on the machine, or a
+ * launcher (AmneziaWG.exe, below) that uses the Java 21 installed on the machine, or a
  * runtime/ folder bundled from a JRE zip given as -PwindowsJre=<zip>
  * (e.g. a Temurin 21 Windows x64 JRE). Tunnels are run by AmneziaWG for
  * Windows (WindowsBackend): an installed one, or one bundled into
@@ -204,10 +208,121 @@ dependencies {
 
 val windowsPortableDir = binariesDir.map { it.dir("windows/amnezia-awg-$appVersion-windows-x64") }
 
+/*
+ * AmneziaWG.exe, the Windows launcher (packaging/windows/launcher): a small
+ * Go program, cross-compiled with Go's own toolchain (standard library only,
+ * nothing is downloaded), with the app icon and version info embedded by
+ * windres (llvm-windres from LLVM, or MinGW's).
+ */
+val windowsLauncherDir = layout.buildDirectory.dir("windows-launcher")
+
+/** The first of [names] found on the PATH (a trailing * matches versioned names like llvm-windres-21). */
+fun findOnPath(vararg names: String): File? {
+    val dirs = System.getenv("PATH").orEmpty().split(File.pathSeparatorChar).filter { it.isNotBlank() }.map(::File)
+    for (name in names) {
+        for (dir in dirs) {
+            if (name.endsWith("*")) {
+                dir.listFiles { f -> f.name.startsWith(name.dropLast(1)) && f.canExecute() }
+                    ?.maxByOrNull { it.name }?.let { return it }
+            } else {
+                File(dir, name).takeIf { it.canExecute() }?.let { return it }
+            }
+        }
+    }
+    return null
+}
+
+/** A Windows .ico holding [png] at [sizes], each entry PNG-compressed (Windows Vista and later). */
+fun writeIco(png: File, ico: File, sizes: List<Int>) {
+    val source = ImageIO.read(png)
+    val images = sizes.map { size ->
+        val scaled = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
+        scaled.createGraphics().apply {
+            drawImage(source.getScaledInstance(size, size, Image.SCALE_SMOOTH), 0, 0, null)
+            dispose()
+        }
+        ByteArrayOutputStream().also { ImageIO.write(scaled, "png", it) }.toByteArray()
+    }
+    val out = ByteArrayOutputStream()
+    fun le16(v: Int) { out.write(v and 0xff); out.write((v shr 8) and 0xff) }
+    fun le32(v: Int) { le16(v and 0xffff); le16(v ushr 16) }
+    le16(0); le16(1); le16(sizes.size)
+    var offset = 6 + 16 * sizes.size
+    sizes.forEachIndexed { i, size ->
+        out.write(if (size >= 256) 0 else size); out.write(if (size >= 256) 0 else size)
+        out.write(0); out.write(0); le16(1); le16(32)
+        le32(images[i].size); le32(offset)
+        offset += images[i].size
+    }
+    images.forEach { out.write(it) }
+    ico.writeBytes(out.toByteArray())
+}
+
+val buildWindowsLauncher by tasks.registering {
+    description = "Builds AmneziaWG.exe, the Windows launcher (needs Go, and llvm-windres or MinGW windres)."
+    group = "compose desktop"
+    val sources = layout.projectDirectory.dir("packaging/windows/launcher")
+    val icon = layout.projectDirectory.file("src/main/resources/icon.png")
+    inputs.dir(sources)
+    inputs.file(icon)
+    inputs.property("version", appVersion)
+    outputs.file(windowsLauncherDir.map { it.file("AmneziaWG.exe") })
+    doLast {
+        val go = findOnPath("go") ?: throw GradleException("Go is needed to build AmneziaWG.exe (https://go.dev/dl/)")
+        val windres = findOnPath("x86_64-w64-mingw32-windres", "llvm-windres", "llvm-windres-*")
+            ?: throw GradleException("windres is needed to build AmneziaWG.exe: install llvm (llvm-windres) or mingw-w64")
+        val work = windowsLauncherDir.get().asFile
+        val src = File(work, "src").apply { deleteRecursively(); mkdirs() }
+        sources.asFile.listFiles()!!.forEach { it.copyTo(File(src, it.name)) }
+        writeIco(icon.asFile, File(src, "icon.ico"), listOf(16, 20, 24, 32, 40, 48, 64, 128, 256))
+        val numbers = (appVersion.split('.').mapNotNull { it.toIntOrNull() } + listOf(0, 0, 0, 0)).take(4).joinToString(",")
+        File(src, "launcher.rc").writeText(
+            """
+            1 ICON "icon.ico"
+            1 VERSIONINFO
+            FILEVERSION $numbers
+            PRODUCTVERSION $numbers
+            FILEOS 0x40004
+            FILETYPE 0x1
+            BEGIN
+              BLOCK "StringFileInfo"
+              BEGIN
+                BLOCK "040904b0"
+                BEGIN
+                  VALUE "CompanyName", "AmneziaWG"
+                  VALUE "FileDescription", "AmneziaWG"
+                  VALUE "FileVersion", "$appVersion"
+                  VALUE "InternalName", "AmneziaWG"
+                  VALUE "OriginalFilename", "AmneziaWG.exe"
+                  VALUE "ProductName", "AmneziaWG"
+                  VALUE "ProductVersion", "$appVersion"
+                END
+              END
+              BLOCK "VarFileInfo"
+              BEGIN
+                VALUE "Translation", 0x409, 1200
+              END
+            END
+            """.trimIndent() + "\n"
+        )
+        fun run(command: List<String>, env: Map<String, String> = emptyMap()) {
+            val builder = ProcessBuilder(command).directory(src).inheritIO()
+            builder.environment().putAll(env)
+            val process = builder.start()
+            check(process.waitFor() == 0) { "${command.joinToString(" ")} failed" }
+        }
+        run(listOf(windres.path, "--target=x86_64-w64-mingw32", "-O", "coff", "-i", "launcher.rc", "-o", "rsrc_windows_amd64.syso"))
+        run(
+            listOf(go.path, "build", "-trimpath", "-ldflags", "-H windowsgui -s -w", "-o", File(work, "AmneziaWG.exe").path, "."),
+            mapOf("GOOS" to "windows", "GOARCH" to "amd64", "CGO_ENABLED" to "0", "GOTOOLCHAIN" to "local", "GOPROXY" to "off", "GOFLAGS" to ""),
+        )
+    }
+}
+
 val assembleWindowsPortable by tasks.registering(Sync::class) {
     description = "Assembles the portable Windows folder; -PwindowsJre=<zip> bundles a runtime, -PwindowsClient=<dir> the AmneziaWG client."
     group = "compose desktop"
-    dependsOn(tasks.jar)
+    dependsOn(tasks.jar, buildWindowsLauncher)
     into(windowsPortableDir)
     into("lib") {
         from(tasks.jar)
@@ -229,7 +344,8 @@ val assembleWindowsPortable by tasks.registering(Sync::class) {
             from(windowsClientDir) { include("amneziawg.exe", "awg.exe", "wintun.dll") }
         }
     }
-    from(layout.projectDirectory.dir("packaging/windows"))
+    from(windowsLauncherDir.map { it.file("AmneziaWG.exe") })
+    from(layout.projectDirectory.dir("packaging/windows")) { exclude("launcher/**") }
     from(layout.projectDirectory.file("src/main/resources/icon.png"))
 }
 

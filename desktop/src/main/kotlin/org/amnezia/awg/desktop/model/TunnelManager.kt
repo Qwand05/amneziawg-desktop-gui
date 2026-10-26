@@ -58,7 +58,15 @@ class TunnelManager(
         scope.launch {
             try {
                 val present = withContext(Dispatchers.IO) { configStore.enumerate() }
-                val running = withContext(Dispatchers.IO) { backend.runningTunnelNames }
+                // The list must show even when the system cannot be asked which
+                // tunnels are up; polling corrects the states later.
+                val running = try {
+                    withContext(Dispatchers.IO) { backend.runningTunnelNames }
+                } catch (e: Throwable) {
+                    AppLog.e(TAG, "Could not read which tunnels are running", e)
+                    onError(e)
+                    emptySet()
+                }
                 onTunnelsLoaded(present, running)
             } catch (e: Throwable) {
                 onError(e)

@@ -122,8 +122,10 @@ the folder afterwards. The RPM's launcher entry lacks the translated names and k
 `.deb` gets (only the `.deb` is patched after jpackage).
 
 **Windows (portable).** jpackage can't cross-build, so `packageWindowsPortable` assembles the
-folder by hand: the application jars with Compose's Windows natives and `AmneziaWG.bat`, which
-starts the app without a console window (`--hidden` and `--toggle` work). The launcher uses a
+folder by hand: the application jars with Compose's Windows natives and `AmneziaWG.exe`, which
+starts the app without a console window (`--hidden` and `--toggle` work). The launcher is a small Go
+program in `desktop/packaging/windows/launcher/`, cross-compiled during the build, so building the
+Windows folder needs Go and `llvm-windres` (from LLVM) or MinGW's `windres`; nothing is downloaded. The launcher uses a
 `runtime\` folder when one is bundled (`-PwindowsJre=<zip>` at build time, or unpack a Windows x64
 JRE there yourself), otherwise `JAVA_HOME`, otherwise `javaw.exe` from the `PATH`; Java 21 or newer
 is required. Data lives under `%APPDATA%\amnezia-awg`.
@@ -132,7 +134,7 @@ On Windows, tunnels are run by the official
 [AmneziaWG for Windows](https://github.com/amnezia-vpn/amneziawg-windows-client) client, the same way
 it runs its own (`desktop/src/main/kotlin/.../backend/WindowsBackend.kt`):
 
-- **Where the client is found:** an `amneziawg\` folder next to `AmneziaWG.bat` (bundle one you built
+- **Where the client is found:** an `amneziawg\` folder next to `AmneziaWG.exe` (bundle one you built
   with its `build.bat` using `-PwindowsClient=amneziawg-windows-client/amd64`), then
   `C:\Program Files\AmneziaWG\` from its installer, then the `PATH`. Without it the switches are
   disabled and the rest of the app still works.

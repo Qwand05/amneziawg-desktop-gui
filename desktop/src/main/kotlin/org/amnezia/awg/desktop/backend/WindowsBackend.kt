@@ -27,7 +27,8 @@ import java.util.concurrent.TimeUnit
  * rights. When this app runs elevated they are run directly, otherwise each
  * one asks for approval through UAC. Running tunnels are recognised by the
  * display name the client gives their services, "AmneziaWG Tunnel: <name>",
- * which `sc.exe` lists without administrator rights.
+ * which `net start` (or, failing that, `sc query`) lists without
+ * administrator rights.
  *
  * Statistics (`awg.exe show <name> dump`) and the client's log
  * (`amneziawg.exe /dumplog`) need administrator rights as well, so they are
@@ -68,9 +69,23 @@ class WindowsBackend(private val configDir: File) : Backend {
     /** A running process cannot elevate itself; the user has to start the app as administrator. */
     override val canRequestPrivileges: Boolean get() = false
 
+    /** Which of the two queries works here; `net start` unless it has failed once. */
+    @Volatile
+    private var useServiceControl = false
+
     override val runningTunnelNames: Set<String>
-        get() = if (client == null) emptySet()
-        else WindowsCommands.parseRunningTunnels(run(*WindowsCommands.QUERY_ACTIVE_SERVICES))
+        get() {
+            if (client == null) return emptySet()
+            if (!useServiceControl) {
+                try {
+                    return WindowsCommands.parseRunningTunnels(run(*WindowsCommands.LIST_STARTED_SERVICES))
+                } catch (e: Exception) {
+                    AppLog.w(TAG, "net start failed, using sc query from now on: ${e.message}")
+                    useServiceControl = true
+                }
+            }
+            return WindowsCommands.parseRunningTunnels(run(*WindowsCommands.QUERY_ACTIVE_SERVICES))
+        }
 
     override fun getState(tunnel: Tunnel): Tunnel.State = Tunnel.State.of(runningTunnelNames.contains(tunnel.name))
 
@@ -221,10 +236,22 @@ class WindowsBackend(private val configDir: File) : Backend {
         /** Installing a service and bringing the adapter up normally takes a few seconds. */
         private const val SERVICE_TIMEOUT_SECONDS = 60L
 
-        /** Console programs (sc, whoami, awg) write in the OEM code page. */
+        /**
+         * Console programs (net, sc, whoami, awg) write in the console's OEM
+         * code page (e.g. 866 on Russian Windows), not in the ANSI one Java
+         * uses by default (1251), which turned their messages into garbage.
+         * `chcp` reports it; its text is translated, the number is not.
+         */
         private val consoleCharset: Charset by lazy {
-            runCatching { Charset.forName(System.getProperty("sun.stdout.encoding") ?: System.getProperty("native.encoding")) }
-                .getOrDefault(Charset.defaultCharset())
+            try {
+                val process = ProcessBuilder("cmd.exe", "/c", "chcp").redirectErrorStream(true).start()
+                val output = process.inputStream.readBytes().toString(StandardCharsets.ISO_8859_1)
+                process.waitFor(10, TimeUnit.SECONDS)
+                WindowsCommands.charsetOfChcp(output)
+            } catch (e: Exception) {
+                AppLog.w(TAG, "Could not read the console code page: $e")
+                null
+            } ?: Charset.defaultCharset()
         }
 
         /**
@@ -266,19 +293,33 @@ internal object WindowsCommands {
     /** ERROR_CANCELLED: the UAC prompt was declined. */
     const val EXIT_CANCELLED = 1223
 
-    /** Active (running or pending) services; a large buffer so sc lists them all in one go. */
-    val QUERY_ACTIVE_SERVICES = arrayOf("sc.exe", "query", "type=", "service", "state=", "active", "bufsize=", "262144")
+    /** Display names of the running services, one per line (the header and footer are translated). */
+    val LIST_STARTED_SERVICES = arrayOf("net.exe", "start")
 
-    /** Tunnel names from `sc query` output, by the services' display names. */
-    fun parseRunningTunnels(scOutput: String): Set<String> =
-        scOutput.lineSequence()
-            .map { it.trim() }
-            .filter { it.startsWith("DISPLAY_NAME") }
-            .map { it.substringAfter(':').trim() }
-            .filter { it.startsWith(TUNNEL_DISPLAY_NAME_PREFIX) }
-            .map { it.removePrefix(TUNNEL_DISPLAY_NAME_PREFIX).trim() }
-            .filter { it.isNotEmpty() }
+    /** Active (running or pending) services; a large buffer so sc lists them all in one go. */
+    val QUERY_ACTIVE_SERVICES = arrayOf("sc.exe", "query", "type=", "service", "state=", "active", "bufsize=", "65536")
+
+    /**
+     * Tunnel names from `net start` or `sc query` output: the text after
+     * "AmneziaWG Tunnel: " wherever it appears, so that neither the
+     * translated parts of the output nor sc's labels matter. Tunnel names
+     * are ASCII, so a wrongly decoded code page cannot garble them.
+     */
+    fun parseRunningTunnels(output: String): Set<String> =
+        output.lineSequence()
+            .mapNotNull { line ->
+                val at = line.indexOf(TUNNEL_DISPLAY_NAME_PREFIX)
+                if (at < 0) null else line.substring(at + TUNNEL_DISPLAY_NAME_PREFIX.length).trim()
+            }
+            .filter { it.isNotEmpty() && !it.contains(' ') }
             .toSet()
+
+    /** The charset of `chcp` output ("Active code page: 866"): the last number in it, as "cp<number>". */
+    fun charsetOfChcp(output: String): Charset? {
+        val number = Regex("[0-9]+").findAll(output).lastOrNull()?.value ?: return null
+        val name = if (number == "65001") "UTF-8" else "cp$number"
+        return runCatching { Charset.forName(name) }.getOrNull()
+    }
 
     /** `whoami /groups` lists the integrity level by SID, which is not translated: High or System. */
     fun isElevated(whoamiGroups: String): Boolean =
