@@ -92,6 +92,13 @@ fun SettingsScreen(app: AppState) {
                     moduleVersion?.fold({ Strings.versionSummary(module, it) }, { Strings.versionSummaryUnknown(module) })
                         ?: Strings.versionSummaryChecking(module),
                 ) {}
+                ActionRow(Strings.SOURCE_CODE_TITLE, BuildInfo.REPOSITORY_URL) {
+                    try {
+                        BuildInfo.openInBrowser(BuildInfo.REPOSITORY_URL)
+                    } catch (e: Exception) {
+                        app.showSnackbar(ErrorMessages[e])
+                    }
+                }
                 ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
                 ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
                 ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}

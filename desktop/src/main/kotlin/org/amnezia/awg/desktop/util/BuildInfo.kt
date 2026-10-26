@@ -14,4 +14,24 @@ object BuildInfo {
             Properties().apply { load(stream) }.getProperty("version")
         } ?: "dev"
     }
+
+    /** The project's repository (the `origin` remote), shown in Settings. */
+    const val REPOSITORY_URL = "https://github.com/Qwand05/amneziawg-linux-gui"
+
+    /**
+     * Open [url] in the default browser: AWT's Desktop where it can browse
+     * (Windows, GNOME), else `xdg-open`, which KDE needs under Wayland.
+     */
+    fun openInBrowser(url: String) {
+        try {
+            val desktop = java.awt.Desktop.getDesktop()
+            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
+                desktop.browse(java.net.URI(url))
+                return
+            }
+        } catch (_: Exception) {
+            // Fall through to xdg-open.
+        }
+        ProcessBuilder("xdg-open", url).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+    }
 }

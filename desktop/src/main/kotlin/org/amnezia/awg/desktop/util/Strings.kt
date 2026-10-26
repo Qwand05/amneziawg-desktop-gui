@@ -201,6 +201,7 @@ object Strings {
     val PRIVILEGES_SUDO get() = t("privileges_sudo")
     val PRIVILEGES_ROOT get() = t("privileges_root")
     val CONFIG_DIR_TITLE get() = t("config_dir_title")
+    val SOURCE_CODE_TITLE get() = t("source_code_title")
     val LANGUAGE_TITLE get() = t("language_title")
     fun languageSystem(name: String) = f("language_system", name)
     val RESTORE_ON_BOOT_TITLE get() = t("restore_on_start_title")
