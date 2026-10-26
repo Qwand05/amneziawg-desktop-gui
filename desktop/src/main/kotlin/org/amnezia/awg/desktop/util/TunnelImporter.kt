@@ -30,8 +30,9 @@ import javax.imageio.ImageIO
 object TunnelImporter {
 
     /**
-     * Import every `.conf` or `.zip` in [files], returning the message to show,
-     * exactly like the Android importer reports its results.
+     * Import every `.conf`, `.zip` or other archive ([Archives]) in [files],
+     * returning the message to show, exactly like the Android importer
+     * reports its results.
      */
     suspend fun importFiles(manager: TunnelManager, files: List<File>): String {
         val tunnels = ArrayList<ObservableTunnel>()
@@ -59,8 +60,10 @@ object TunnelImporter {
                 tunnels.add(manager.create(file.name.dropLast(".conf".length), config))
             }
 
-            lower.endsWith(".zip") -> {
-                val parsed = withContext(Dispatchers.IO) { readZip(file, throwables) }
+            lower.endsWith(".zip") || Archives.isArchive(lower) -> {
+                val parsed = withContext(Dispatchers.IO) {
+                    if (lower.endsWith(".zip")) readZip(file, throwables) else readArchive(file, throwables)
+                }
                 if (parsed.isEmpty() && throwables.isEmpty())
                     throw IllegalArgumentException(Strings.NO_CONFIGS_ERROR)
                 for ((name, config) in parsed) {
@@ -94,6 +97,16 @@ object TunnelImporter {
         }
         return result
     }
+
+    private fun readArchive(file: File, throwables: MutableList<Throwable>): List<Pair<String, Config>> =
+        Archives.readConfs(file).mapNotNull { (name, bytes) ->
+            try {
+                name.dropLast(".conf".length) to Config.parse(ByteArrayInputStream(bytes))
+            } catch (e: Throwable) {
+                throwables.add(e)
+                null
+            }
+        }
 
     /** Parse [text] to make sure it is a valid configuration (QR code / clipboard import). */
     fun parseConfigText(text: String): Config =

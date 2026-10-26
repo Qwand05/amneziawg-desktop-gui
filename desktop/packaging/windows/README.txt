@@ -30,6 +30,9 @@ asks for approval (UAC) each time. To avoid that, and to see live traffic
 statistics and the client log, start AmneziaWG.exe with "Run as
 administrator".
 
+Importing: the + button takes .conf files and archives of them (.zip, .7z,
+.rar, .tar, .tar.gz…); Windows' own tar.exe reads the non-zip ones.
+
 Tunnel services start automatically with Windows: a tunnel that is up
 when you shut down comes back after a reboot, even without this app.
 Disconnect it first if you don't want that.

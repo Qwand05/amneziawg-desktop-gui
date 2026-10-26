@@ -81,6 +81,7 @@ import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.ObservableTunnel
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.Archives
 import org.amnezia.awg.desktop.util.CameraDevice
 import org.amnezia.awg.desktop.util.Cameras
 import org.amnezia.awg.desktop.util.ErrorMessages
@@ -135,7 +136,7 @@ fun TunnelListScreen(app: AppState, selectedTunnel: ObservableTunnel?) {
     }
 
     fun importFromFiles() {
-        val files = FileDialogs.openFiles(Strings.CREATE_FROM_FILE, ".conf", ".zip")
+        val files = FileDialogs.openFiles(Strings.CREATE_FROM_FILE, ".conf", ".zip", *Archives.readableExtensions.toTypedArray())
         if (files.isEmpty()) return
         app.scope.launch { app.showSnackbar(TunnelImporter.importFiles(manager, files)) }
     }

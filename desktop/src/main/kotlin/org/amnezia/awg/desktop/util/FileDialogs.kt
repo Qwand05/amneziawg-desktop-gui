@@ -15,22 +15,31 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Native (GTK on Ubuntu) open/save dialogs, replacing Android's storage
- * access framework, plus the zip exporter from `ZipExporterPreference`.
+ * Native open/save dialogs (GTK on Linux, the common dialogs on Windows),
+ * replacing Android's storage access framework, plus the zip exporter from
+ * `ZipExporterPreference`.
  */
 object FileDialogs {
     /** The window the dialogs are modal to; set once by `Main.kt`. */
     var parent: Frame? = null
 
+    /** Lets the user pick files; with [extensions] (".conf", ".tar.gz"…), only files ending in one of them are shown. */
     fun openFiles(title: String, vararg extensions: String): List<File> {
         val dialog = FileDialog(parent, title, FileDialog.LOAD).apply {
             isMultipleMode = true
-            if (extensions.isNotEmpty())
+            if (extensions.isNotEmpty()) {
                 setFilenameFilter { _, name -> extensions.any { name.lowercase().endsWith(it) } }
+                // Java's Windows dialog ignores the filter above, but takes a
+                // wildcard pattern given as the file name as its filter.
+                if (AppPaths.isWindows) file = windowsFilter(extensions.toList())
+            }
         }
         dialog.isVisible = true
         return dialog.files.toList()
     }
+
+    /** "*.conf;*.zip;*.tar.gz" */
+    internal fun windowsFilter(extensions: List<String>): String = extensions.distinct().joinToString(";") { "*$it" }
 
     fun saveFile(title: String, suggestedName: String, directory: File = AppPaths.defaultExportDir): File? {
         val dialog = FileDialog(parent, title, FileDialog.SAVE).apply {

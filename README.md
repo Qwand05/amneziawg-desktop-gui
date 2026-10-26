@@ -20,7 +20,9 @@ with the AmneziaWG tools should work too.
   parameters (`Jc`, `Jmin`, `Jmax`, `S1`–`S4`, `H1`–`H4`, `I1`–`I5`, …), key generation and the
   "Exclude private IPs" helper.
 - **Ways to add a tunnel**:
-  - import `.conf` files or `.zip` archives;
+  - import `.conf` files, or archives of them: `.zip` everywhere, plus `.7z`, `.rar` and `.tar`
+    (`.tar.gz`, `.tar.xz`, `.tar.bz2`…) read with Windows' built-in `tar.exe`, or on Linux with
+    `bsdtar`, 7-Zip or GNU tar; the file dialog only offers what can be read;
   - scan a QR code with a webcam (the menu entry is disabled when no camera is detected);
   - read a QR code from an image file;
   - paste a config from the clipboard;

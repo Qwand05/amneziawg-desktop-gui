@@ -136,6 +136,7 @@ object Strings {
     val SHORTCUT_UNAVAILABLE get() = t("shortcut_unavailable")
     fun shortcutCreated(path: String) = f("shortcut_created", path)
     fun shortcutComment(name: String) = f("shortcut_comment", name)
+    fun archiveToolMissing(extension: String) = f("archive_tool_missing", extension)
     fun shortcutError(error: String) = f("shortcut_error", error)
     fun tunnelNotFound(name: String) = f("tunnel_not_found", name)
     fun transferRxTx(rx: String, tx: String) = f("transfer_rx_tx", rx, tx)
