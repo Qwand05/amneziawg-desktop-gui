@@ -55,6 +55,7 @@ import org.amnezia.awg.desktop.util.AppLog
 import org.amnezia.awg.desktop.util.BuildInfo
 import org.amnezia.awg.desktop.util.QuantityFormatter
 import org.amnezia.awg.desktop.model.AppState
+import org.amnezia.awg.desktop.model.RecentTunnels
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.AmneziaContent
 import org.amnezia.awg.desktop.ui.LogViewerScreen
@@ -206,9 +207,10 @@ private fun toggleArgument(args: Array<String>): String? {
 }
 
 /**
- * Tray icon contents: show/hide; a submenu per tunnel, titled with its status,
- * holding its traffic, connect/disconnect, details and a desktop shortcut;
- * disconnect all; settings and the log; quit.
+ * Tray icon contents: show/hide; a submenu for each of the five most recently
+ * used tunnels (and any that are up), titled with its status, holding its
+ * traffic, connect/disconnect, details and a desktop shortcut; disconnect all;
+ * settings and the log; quit.
  */
 private fun trayState(
     app: AppState,
@@ -229,7 +231,11 @@ private fun trayState(
         add(TrayMenuEntry.Action(if (windowVisible) Strings.TRAY_HIDE else Strings.TRAY_SHOW, key = "window", onClick = onToggleWindow))
         add(TrayMenuEntry.Separator)
         if (tunnels.isEmpty()) add(TrayMenuEntry.Action(Strings.TRAY_NO_TUNNELS, enabled = false, key = "none") {})
-        tunnels.forEach { tunnel ->
+        val listed = RecentTunnels.pick(
+            tunnels, app.tunnelManager.recentTunnelNames, RecentTunnels.TRAY_LIMIT,
+            name = { it.name }, isUp = { it.state == Tunnel.State.UP },
+        )
+        listed.forEach { tunnel ->
             val isUp = tunnel.state == Tunnel.State.UP
             val status = tunnelStatusText(tunnel) ?: Strings.TUNNEL_STATUS_DISCONNECTED
             val children = buildList {

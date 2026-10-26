@@ -29,8 +29,8 @@ with the AmneziaWG tools should work too.
 - **System tray icon** (native StatusNotifierItem, so it works on KDE Plasma under Wayland):
   - closing the window keeps the app running in the tray;
   - left-click the icon to show or hide the window;
-  - the right-click menu has an entry per tunnel showing its status, with a submenu holding the
-    traffic so far, Connect/Disconnect, Show details and Create desktop shortcut;
+  - the right-click menu lists the five most recently used tunnels with their status, each with a
+    submenu holding the traffic so far, Connect/Disconnect, Show details and Create desktop shortcut;
   - Disconnect all, Settings and the log viewer are in the menu too;
   - the icon is in color while a tunnel is connected and grey otherwise.
 - **Desktop shortcuts**: put a shortcut for a tunnel on your Desktop; double-clicking it connects
@@ -192,8 +192,9 @@ Closing the window hides it to the tray. Left-click the icon to show or hide the
 it for the menu:
 
 - **Show / Hide AmneziaWG**.
-- One entry per tunnel, titled with its status (*Connected*, *Connecting…* or *Not connected*).
-  Hover it for the submenu: the traffic so far (while connected), **Connect** or **Disconnect**,
+- The five most recently used tunnels, most recent first, each titled with its status (*Connected*,
+  *Connecting…* or *Not connected*). Tunnels that are up are always listed, so they can be
+  disconnected from here; the others are in the window. Hover one for the submenu: the traffic so far (while connected), **Connect** or **Disconnect**,
   **Show details** and **Create desktop shortcut**.
 - **Disconnect all**, greyed out while nothing is connected.
 - **Settings** and **View application log**, which open the window on that screen.

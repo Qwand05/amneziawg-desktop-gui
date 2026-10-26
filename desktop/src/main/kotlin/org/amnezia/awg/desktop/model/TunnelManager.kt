@@ -51,6 +51,26 @@ class TunnelManager(
     var lastUsedTunnel: ObservableTunnel? by mutableStateOf(null)
         private set
 
+    /**
+     * Tunnel names, most recently connected first (by this app or outside it),
+     * for the tray's short list (see [RecentTunnels]). Persisted, and longer
+     * than the tray needs so that deleting a tunnel does not leave it short.
+     * Starts from the last used tunnel the first time.
+     */
+    var recentTunnelNames: List<String> by mutableStateOf(
+        prefs.getString(Prefs.KEY_RECENT_TUNNELS, null)?.split(',')?.filter { it.isNotEmpty() }
+            ?: listOfNotNull(prefs.getString(Prefs.KEY_LAST_USED_TUNNEL, null))
+    )
+        private set
+
+    private fun markUsed(name: String) = updateRecent(listOf(name) + recentTunnelNames)
+
+    /** Tunnel names cannot contain commas, so a comma separated list is safe. */
+    private fun updateRecent(names: List<String>) {
+        recentTunnelNames = names.distinct().take(RECENT_MAX)
+        prefs.putString(Prefs.KEY_RECENT_TUNNELS, recentTunnelNames.joinToString(",").ifEmpty { null })
+    }
+
     /** The backend is only contacted for privileged operations. */
     val isReady: Boolean get() = loaded
 
@@ -123,6 +143,7 @@ class TunnelManager(
             if (state != tunnel.state) {
                 AppLog.i(TAG, "${tunnel.name} is now ${if (state == Tunnel.State.UP) "up" else "down"} (changed outside the app)")
                 tunnel.onStateChanged(state)
+                if (state == Tunnel.State.UP) markUsed(tunnel.name)
             }
             if (state != Tunnel.State.UP) continue
             if (!backend.hasPrivileges) {
@@ -180,6 +201,7 @@ class TunnelManager(
             try {
                 withContext(Dispatchers.IO) { configStore.delete(tunnel.name) }
                 AppLog.i(TAG, "Deleted tunnel ${tunnel.name}")
+                updateRecent(recentTunnelNames - tunnel.name)
             } catch (e: Throwable) {
                 if (originalState == Tunnel.State.UP) {
                     withContext(Dispatchers.IO) { backend.setState(tunnel, Tunnel.State.UP, tunnel.config) }
@@ -225,7 +247,9 @@ class TunnelManager(
             }
             withContext(Dispatchers.IO) { configStore.rename(tunnel.name, name) }
             AppLog.i(TAG, "Renamed tunnel ${tunnel.name} to $name")
+            val oldName = tunnel.name
             newName = tunnel.onNameChanged(name)
+            updateRecent(recentTunnelNames.map { if (it == oldName) name else it })
             if (originalState == Tunnel.State.UP) {
                 withContext(Dispatchers.IO) { backend.setState(tunnel, Tunnel.State.UP, tunnel.config) }
             }
@@ -256,6 +280,7 @@ class TunnelManager(
                 if (newState == Tunnel.State.UP) {
                     lastUsedTunnel = tunnel
                     prefs.putString(Prefs.KEY_LAST_USED_TUNNEL, tunnel.name)
+                    markUsed(tunnel.name)
                 }
             } catch (e: Throwable) {
                 throwable = e
@@ -334,5 +359,6 @@ class TunnelManager(
         const val TAG = "TunnelManager"
         const val POLL_INTERVAL_MILLIS = 2_000L
         const val HANDSHAKE_TIMEOUT_MILLIS = 180_000L
+        const val RECENT_MAX = 20
     }
 }
