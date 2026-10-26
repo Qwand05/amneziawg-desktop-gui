@@ -151,11 +151,17 @@ it runs its own (`desktop/src/main/kotlin/.../backend/WindowsBackend.kt`):
 - **Connecting** writes the config to `%APPDATA%\amnezia-awg\<name>.conf` and runs
   `amneziawg.exe /installtunnelservice <file>`; **disconnecting** runs
   `amneziawg.exe /uninstalltunnelservice <name>`. Both need administrator rights: if the app was
-  started with *Run as administrator* they run directly, otherwise Windows asks through UAC each time.
+  started with *Run as administrator* they run directly. Otherwise the first switch in a session
+  shows one UAC prompt, which starts a small elevated helper (the app's own code,
+  `WindowsHelperMain`); it runs these commands from then on and exits with the app. It listens only
+  on localhost, answers only requests with a random token kept in your profile, and only installs
+  configs from the app's own folder, uninstalls tunnels by name and reads statistics and the log.
 - **Running tunnels** are the active services named *AmneziaWG Tunnel: &lt;name&gt;* (`sc query`, no
   rights needed), so tunnels started from the official client's own window show up too.
 - **Live statistics** (`awg.exe show <name> dump`) and the **client log** (`amneziawg.exe /dumplog`,
-  the second tab of the log viewer) need the app to run as administrator.
+  the second tab of the log viewer) need administrator rights too: they work once the helper runs
+  (or with *Run as administrator*). Reading them never shows a UAC prompt by itself; *Show live
+  statistics* on a tunnel's details does.
 - **Tunnel services start with Windows,** so a tunnel that is up at shutdown comes back after a
   reboot even without this app.
 

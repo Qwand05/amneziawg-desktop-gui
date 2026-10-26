@@ -66,6 +66,7 @@ object Strings {
     val TYPE_NAME_WINDOWS_CLIENT get() = t("type_name_windows_client")
     val PRIVILEGES_WINDOWS_ELEVATED get() = t("privileges_windows_elevated")
     val PRIVILEGES_WINDOWS_UAC get() = t("privileges_windows_uac")
+    val PRIVILEGES_WINDOWS_HELPER get() = t("privileges_windows_helper")
     val STATISTICS_NEED_ADMIN_WINDOWS get() = t("statistics_need_admin_windows")
     val LOG_TAB_CLIENT get() = t("log_tab_client")
     val CLIENT_LOG_HINT get() = t("client_log_hint")

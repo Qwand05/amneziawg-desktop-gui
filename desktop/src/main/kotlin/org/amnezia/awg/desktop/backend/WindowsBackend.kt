@@ -8,6 +8,7 @@ import org.amnezia.awg.backend.BackendException
 import org.amnezia.awg.backend.Tunnel
 import org.amnezia.awg.config.Config
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.AppPaths
 import org.amnezia.awg.desktop.util.FilePermissions
 import org.amnezia.awg.desktop.util.Strings
 import java.io.File
@@ -24,15 +25,17 @@ import java.util.concurrent.TimeUnit
  * Each running tunnel is a Windows service created by
  * `amneziawg.exe /installtunnelservice <file.conf>` and removed by
  * `amneziawg.exe /uninstalltunnelservice <name>`; both need administrator
- * rights. When this app runs elevated they are run directly, otherwise each
- * one asks for approval through UAC. Running tunnels are recognised by the
+ * rights. When this app runs elevated they are run directly; otherwise the
+ * first one starts a [WindowsHelper] as administrator (one UAC prompt per
+ * session) that runs them from then on. Running tunnels are recognised by the
  * display name the client gives their services, "AmneziaWG Tunnel: <name>",
  * which `net start` (or, failing that, `sc query`) lists without
  * administrator rights.
  *
  * Statistics (`awg.exe show <name> dump`) and the client's log
- * (`amneziawg.exe /dumplog`) need administrator rights as well, so they are
- * only available when the app itself runs elevated.
+ * (`amneziawg.exe /dumplog`) need administrator rights as well: they are
+ * read directly when elevated, through the helper once it runs, and not at
+ * all before (like on Linux, reading them never prompts by itself).
  *
  * Tunnel services start automatically with Windows, so a tunnel left up
  * comes back after a reboot even without this app running.
@@ -61,13 +64,34 @@ class WindowsBackend(private val configDir: File) : Backend {
 
     override val typeName: String get() = Strings.TYPE_NAME_WINDOWS_CLIENT
 
-    override val hasPrivileges: Boolean get() = elevated && awg != null
+    @Volatile
+    private var helperInstance: WindowsHelper? = null
+
+    private val helperRunning: Boolean get() = helperInstance?.isAlive == true
+
+    /** The elevated helper, started (with its UAC prompt) when there is none yet. */
+    @Synchronized
+    private fun helper(): WindowsHelper {
+        helperInstance?.takeIf { it.isAlive }?.let { return it }
+        val client = client ?: throw IllegalStateException(Strings.WINDOWS_CLIENT_MISSING)
+        AppLog.i(TAG, "Starting the elevated helper (UAC)")
+        return WindowsHelper.start(AppPaths.stateDir, configDir, client, awg).also {
+            helperInstance = it
+            AppLog.i(TAG, "Elevated helper running")
+        }
+    }
+
+    override val hasPrivileges: Boolean get() = (elevated || helperRunning) && awg != null
 
     override val privilegeDescription: String
-        get() = if (elevated) Strings.PRIVILEGES_WINDOWS_ELEVATED else Strings.PRIVILEGES_WINDOWS_UAC
+        get() = when {
+            elevated -> Strings.PRIVILEGES_WINDOWS_ELEVATED
+            helperRunning -> Strings.PRIVILEGES_WINDOWS_HELPER
+            else -> Strings.PRIVILEGES_WINDOWS_UAC
+        }
 
-    /** A running process cannot elevate itself; the user has to start the app as administrator. */
-    override val canRequestPrivileges: Boolean get() = false
+    /** The helper can be started from the app; when elevated, there is nothing to ask for. */
+    override val canRequestPrivileges: Boolean get() = !elevated
 
     /** Which of the two queries works here; `net start` unless it has failed once. */
     @Volatile
@@ -96,11 +120,14 @@ class WindowsBackend(private val configDir: File) : Backend {
         return statistics.peers().maxOfOrNull { statistics.peer(it)!!.latestHandshakeEpochMillis / 1000 } ?: 0
     }
 
+    /** Never starts the helper by itself, so polling statistics cannot prompt. */
     override fun getStatistics(tunnel: Tunnel): Statistics {
         val awg = awg
         if (!hasPrivileges || awg == null) return Statistics.empty()
         return try {
-            Statistics.of(AwgShowParser.parseDump(run(awg.path, "show", tunnel.name, "dump")))
+            val dump = if (elevated) run(awg.path, "show", tunnel.name, "dump")
+            else helperInstance!!.exec(WindowsHelperProtocol.DUMP, tunnel.name).takeIf { it.exitCode == 0 }?.output ?: return Statistics.empty()
+            Statistics.of(AwgShowParser.parseDump(dump))
         } catch (_: Exception) {
             Statistics.empty()
         }
@@ -152,7 +179,7 @@ class WindowsBackend(private val configDir: File) : Backend {
             if (originalState == Tunnel.State.UP) down(client, tunnel.name)
             val file = writeConfig(tunnel.name, config)
             AppLog.i(TAG, "Bringing ${tunnel.name} up")
-            runAsAdministrator(client, "/installtunnelservice", file.absolutePath)
+            runAsAdministrator(client, WindowsHelperProtocol.INSTALL, file.absolutePath)
             if (!waitFor(tunnel.name, up = true))
                 throw IllegalStateException(Strings.windowsTunnelNotStarted(tunnel.name))
             AppLog.i(TAG, "${tunnel.name} is up")
@@ -165,7 +192,7 @@ class WindowsBackend(private val configDir: File) : Backend {
 
     private fun down(client: File, name: String) {
         AppLog.i(TAG, "Taking $name down")
-        runAsAdministrator(client, "/uninstalltunnelservice", name)
+        runAsAdministrator(client, WindowsHelperProtocol.UNINSTALL, name)
         if (!waitFor(name, up = false)) AppLog.w(TAG, "$name still listed as running after uninstalling its service")
         else AppLog.i(TAG, "$name is down")
     }
@@ -181,27 +208,32 @@ class WindowsBackend(private val configDir: File) : Backend {
     }
 
     /**
-     * Runs the client with administrator rights: directly when this app is
-     * elevated, otherwise through PowerShell's `Start-Process -Verb RunAs`,
-     * which shows the UAC prompt. The client reports its own errors in a
-     * message box; here only the exit code is seen.
+     * Installs ([WindowsHelperProtocol.INSTALL], a config file) or uninstalls
+     * ([WindowsHelperProtocol.UNINSTALL], a tunnel name) a tunnel service with
+     * administrator rights: directly when this app is elevated, otherwise
+     * through the helper, started with a UAC prompt the first time. The
+     * client reports its own errors in a message box; here only the exit
+     * code is seen.
      */
-    private fun runAsAdministrator(client: File, vararg args: String) {
-        val command = if (elevated) listOf(client.path, *args)
-        else listOf("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", WindowsCommands.elevatedCommand(client.path, args.toList()))
-        val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader(consoleCharset).use { it.readText() }.trim()
-        if (!process.waitFor(SERVICE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            throw IllegalStateException("amneziawg.exe ${args.first()} timed out")
-        }
-        when (val code = process.exitValue()) {
-            0 -> {}
-            WindowsCommands.EXIT_CANCELLED -> throw IllegalStateException(Strings.AUTH_FAILED)
-            else -> {
-                AppLog.e(TAG, "amneziawg.exe ${args.joinToString(" ")} exited with $code${if (output.isEmpty()) "" else "\n$output"}")
-                throw IllegalStateException(Strings.windowsClientFailed(code.toString()))
+    private fun runAsAdministrator(client: File, command: String, argument: String) {
+        val flag = if (command == WindowsHelperProtocol.INSTALL) "/installtunnelservice" else "/uninstalltunnelservice"
+        val (code, output) = if (elevated) {
+            val process = ProcessBuilder(client.path, flag, argument).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(consoleCharset).use { it.readText() }.trim()
+            if (!process.waitFor(SERVICE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                throw IllegalStateException("amneziawg.exe $flag timed out")
             }
+            process.exitValue() to output
+        } else {
+            val result = helper().exec(command, argument)
+            result.exitCode to result.output.trim()
+        }
+        if (code != 0) {
+            AppLog.e(TAG, "amneziawg.exe $flag $argument exited with $code${if (output.isEmpty()) "" else "\n$output"}")
+            throw IllegalStateException(
+                if (code == WindowsHelperProtocol.REFUSED) output else Strings.windowsClientFailed(code.toString())
+            )
         }
     }
 
@@ -220,15 +252,23 @@ class WindowsBackend(private val configDir: File) : Backend {
     /** The client's tunnel service log; it lives in the client's protected data folder. */
     override fun systemLog(lines: Int): String {
         val client = client ?: return ""
-        if (!elevated) return ""
-        return run(client.path, "/dumplog").lines().filter { it.isNotBlank() }.takeLast(lines).joinToString("\n")
+        val log = when {
+            elevated -> run(client.path, "/dumplog")
+            helperRunning -> helperInstance!!.exec(WindowsHelperProtocol.LOG).takeIf { it.exitCode == 0 }?.output ?: return ""
+            else -> return ""
+        }
+        return log.lines().filter { it.isNotBlank() }.takeLast(lines).joinToString("\n")
     }
 
+    /** "Show live statistics": starts the helper (one UAC prompt) unless the app is elevated. */
     override fun requestPrivileges() {
-        throw IllegalStateException(Strings.STATISTICS_NEED_ADMIN_WINDOWS)
+        if (!elevated) helper()
     }
 
-    override fun close() {}
+    override fun close() {
+        helperInstance?.close()
+        helperInstance = null
+    }
 
     companion object {
         private const val TAG = "Backend"
@@ -348,11 +388,10 @@ internal object WindowsCommands {
      * PowerShell that starts [exe] elevated with [args], waits and exits
      * with its exit code; a declined UAC prompt exits with [EXIT_CANCELLED].
      */
-    fun elevatedCommand(exe: String, args: List<String>): String {
+    fun elevatedCommand(exe: String, args: List<String>, wait: Boolean = true): String {
         val argumentList = psQuote(args.joinToString(" ") { winQuote(it) })
-        return "try { " +
-            "\$p = Start-Process -FilePath ${psQuote(exe)} -ArgumentList $argumentList -Verb RunAs -Wait -PassThru -ErrorAction Stop; " +
-            "exit \$p.ExitCode " +
-            "} catch { [Console]::Error.WriteLine(\$_.Exception.Message); exit $EXIT_CANCELLED }"
+        val start = "Start-Process -FilePath ${psQuote(exe)} -ArgumentList $argumentList -Verb RunAs"
+        val run = if (wait) "\$p = $start -Wait -PassThru -ErrorAction Stop; exit \$p.ExitCode " else "$start -ErrorAction Stop; exit 0 "
+        return "try { $run} catch { [Console]::Error.WriteLine(\$_.Exception.Message); exit $EXIT_CANCELLED }"
     }
 }

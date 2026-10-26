@@ -25,10 +25,12 @@ its protected folder, which no other program can read: export them there
 ("Export all tunnels to zip") and import the zip here with the + button.
 
 Administrator rights: connecting and disconnecting a tunnel installs or
-removes its Windows service, which needs administrator rights, so Windows
-asks for approval (UAC) each time. To avoid that, and to see live traffic
-statistics and the client log, start AmneziaWG.exe with "Run as
-administrator".
+removes its Windows service, which needs administrator rights. Windows asks
+for approval (UAC) once per session, the first time a tunnel is switched;
+that starts a small elevated helper which does the rest without asking
+again, and exits with the app. Once it runs, live traffic statistics and
+the client log work too. Starting AmneziaWG.exe with "Run as administrator"
+avoids even that one prompt.
 
 Importing: the + button takes .conf files and archives of them (.zip, .7z,
 .rar, .tar, .tar.gz…); Windows' own tar.exe reads the non-zip ones.
