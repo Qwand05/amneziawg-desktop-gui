@@ -72,6 +72,19 @@ class DesktopShortcutsTest {
         assertTrue("Icon=network-vpn" in lines)
     }
 
+    @Test
+    fun buildsTheWindowsShortcutScript() {
+        val exe = File("C:\\Users\\O'Brien\\AmneziaWG\\AmneziaWG.exe")
+        val script = DesktopShortcuts.windowsScript("office-2", exe, "Connect or disconnect the AmneziaWG tunnel “office-2”")
+        val lines = script.lines()
+        assertTrue(script, "\$path = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AmneziaWG - office-2.lnk'" in lines)
+        assertTrue(script, "\$link.TargetPath = '${exe.absolutePath.replace("'", "''")}'" in lines)
+        assertTrue(script, "\$link.Arguments = '--toggle office-2'" in lines)
+        assertTrue(script, "\$link.IconLocation = '${exe.absolutePath.replace("'", "''")},0'" in lines)
+        assertTrue(script, "\$link.Description = 'Connect or disconnect the AmneziaWG tunnel “office-2”'" in lines)
+        assertEquals("Write-Output \$path", lines.last())
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesInvalidTunnelNames() {
         DesktopShortcuts.create("bad name", temp.newFile("AmneziaWG"), temp.newFolder("Desktop"))

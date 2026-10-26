@@ -100,18 +100,14 @@ fun main(args: Array<String>) {
 
     // A second launch only asks the running instance to show its window (or to toggle a tunnel).
     val instance = when (
-        val result = SingleInstance.acquire(
-            onShow = showWindow,
-            onToggleTunnel = { toggleRequests.trySend(it) },
-            forward = { remote -> if (toggle != null) remote.ToggleTunnel(toggle) else remote.Show() },
-        )
+        val result = SingleInstance.acquire(toggle, onShow = showWindow, onToggleTunnel = { toggleRequests.trySend(it) })
     ) {
         is SingleInstance.Result.Acquired -> result.instance
         SingleInstance.Result.AlreadyRunning -> {
             AppLog.i("App", "Already running; asked the running instance to ${if (toggle != null) "toggle $toggle" else "show its window"}")
             return
         }
-        SingleInstance.Result.NoBus -> null
+        SingleInstance.Result.Unavailable -> null
     }
 
     val app = AppState()

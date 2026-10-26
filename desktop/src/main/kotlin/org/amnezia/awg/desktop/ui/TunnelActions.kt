@@ -92,6 +92,13 @@ fun AppState.toggleTunnelNamed(name: String, onFailure: () -> Unit) {
         }
         // A second click while the first is still switching is ignored.
         if (tunnel.isBusy) return@launch
+        // Like the disabled switches: without the tools, say so instead of failing to run them.
+        if (!toolsAvailable) {
+            AppLog.w("Tunnels", "Shortcut for $name: the AmneziaWG tools are not installed")
+            showSnackbar(backend.toolsMissingMessage)
+            onFailure()
+            return@launch
+        }
         val up = tunnel.state == Tunnel.State.UP
         AppLog.i("Tunnels", "Shortcut for $name: switching ${if (up) "off" else "on"}")
         if (!setTunnelState(tunnel, !up)) onFailure()
