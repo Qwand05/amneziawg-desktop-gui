@@ -44,6 +44,11 @@ with the AmneziaWG tools should work too.
   - custom accent and status colors;
   - close to tray;
   - language.
+  - the repository link with its contributors' avatars; hover one for the name, click it for the
+    GitHub profile. Opening Settings fetches them from GitHub's public API (`api.github.com`,
+    `avatars.githubusercontent.com`) at most once a day and caches them in
+    `~/.local/state/amnezia-awg/contributors/`; offline, the cached ones (or none) are shown. The app
+    contacts nothing else.
 - **Languages**: English, German, Spanish, French, Italian, Polish, Portuguese (Brazil and
   Portugal), Turkish, Russian, Ukrainian, Japanese and Simplified Chinese. The app follows the
   system language by default; pick another one under **Settings → Language**.

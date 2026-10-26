@@ -5,6 +5,28 @@
 package org.amnezia.awg.desktop.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import org.amnezia.awg.desktop.util.Contributor
+import org.amnezia.awg.desktop.util.Contributors
+import javax.imageio.ImageIO
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -52,6 +74,7 @@ fun SettingsScreen(app: AppState) {
     var restoreOnStart by remember { mutableStateOf(prefs.getBoolean(Prefs.KEY_RESTORE_ON_BOOT, false)) }
     var multipleTunnels by remember { mutableStateOf(app.backend.multipleTunnels) }
     var exporting by remember { mutableStateOf(false) }
+    var contributors by remember { mutableStateOf(emptyList<Contributor>()) }
 
     LaunchedEffect(Unit) {
         moduleVersion = runCatching { withContext(Dispatchers.IO) { app.backend.getVersion() } }
@@ -59,6 +82,19 @@ fun SettingsScreen(app: AppState) {
             withContext(Dispatchers.IO) { app.backend.getToolsVersion() }
         } catch (e: Throwable) {
             ErrorMessages[e]
+        }
+    }
+    // The cached contributors at once, then fresh ones from GitHub at most once a day.
+    LaunchedEffect(Unit) {
+        contributors = withContext(Dispatchers.IO) { Contributors.cached() }
+        withContext(Dispatchers.IO) { Contributors.refreshIfStale() }?.let { contributors = it }
+    }
+
+    fun openInBrowser(url: String) {
+        try {
+            BuildInfo.openInBrowser(url)
+        } catch (e: Exception) {
+            app.showSnackbar(ErrorMessages[e])
         }
     }
 
@@ -88,17 +124,11 @@ fun SettingsScreen(app: AppState) {
             Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
                 val module = app.backend.typeName
                 ActionRow(
-                    Strings.versionTitle(BuildInfo.version),
+                    Strings.versionTitle(BuildInfo.platformName, BuildInfo.version),
                     moduleVersion?.fold({ Strings.versionSummary(module, it) }, { Strings.versionSummaryUnknown(module) })
                         ?: Strings.versionSummaryChecking(module),
                 ) {}
-                ActionRow(Strings.SOURCE_CODE_TITLE, BuildInfo.REPOSITORY_URL) {
-                    try {
-                        BuildInfo.openInBrowser(BuildInfo.REPOSITORY_URL)
-                    } catch (e: Exception) {
-                        app.showSnackbar(ErrorMessages[e])
-                    }
-                }
+                SourceCodeRow(contributors, onOpen = ::openInBrowser)
                 ActionRow(Strings.TOOLS_TITLE, toolsVersion) {}
                 ActionRow(Strings.PRIVILEGES_TITLE, app.backend.privilegeDescription) {}
                 ActionRow(Strings.CONFIG_DIR_TITLE, AppPaths.configDir.absolutePath) {}
@@ -176,6 +206,57 @@ private fun LanguageRow(app: AppState) {
                     text = { Text(language.nativeName) },
                     leadingIcon = { if (app.language == language) Icon(Icons.Default.Check, null) },
                     onClick = { open = false; app.updateLanguage(language) },
+                )
+            }
+        }
+    }
+}
+
+/** "Source code" with the repository link, and the contributors' avatars at the end of the row. */
+@Composable
+private fun SourceCodeRow(contributors: List<Contributor>, onOpen: (String) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onOpen(BuildInfo.REPOSITORY_URL) }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(Strings.SOURCE_CODE_TITLE, style = MaterialTheme.typography.bodyLarge)
+            Text(BuildInfo.REPOSITORY_URL, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (contributors.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                contributors.forEach { contributor -> ContributorAvatar(contributor) { onOpen(contributor.profileUrl) } }
+            }
+        }
+    }
+}
+
+/** A small round avatar; hovering shows the name, clicking opens the GitHub profile. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContributorAvatar(contributor: Contributor, onClick: () -> Unit) {
+    val image = remember(contributor.avatar) {
+        contributor.avatar?.let { file -> runCatching { ImageIO.read(file)?.toComposeImageBitmap() }.getOrNull() }
+    }
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+        tooltip = { PlainTooltip { Text(contributor.label) } },
+        state = rememberTooltipState(),
+    ) {
+        val modifier = Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onClick)
+        if (image != null) {
+            Image(image, contentDescription = contributor.label, modifier = modifier, contentScale = ContentScale.Crop)
+        } else {
+            // No avatar downloaded: the first letter of the login.
+            Box(modifier.background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                Text(
+                    contributor.login.take(1).uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
         }

@@ -85,7 +85,9 @@ compose.desktop {
             //  - java.instrument: referenced by a dependency; cheap to include.
             //  - jdk.localedata: number formats of the translated languages
             //    (e.g. "1,50" in Russian); not found by suggestRuntimeModules.
-            modules("java.instrument", "jdk.localedata", "jdk.security.auth", "jdk.unsupported")
+            //  - jdk.crypto.ec: elliptic-curve TLS, which HTTPS to GitHub needs
+            //    (contributors in Settings); a separate module on Java 21.
+            modules("java.instrument", "jdk.crypto.ec", "jdk.localedata", "jdk.security.auth", "jdk.unsupported")
 
             linux {
                 // The GUI talks to awg-quick through a polkit helper, so it
@@ -151,6 +153,8 @@ tasks.test {
     environment("XDG_CONFIG_HOME", layout.buildDirectory.dir("test-config").get().asFile.absolutePath)
     environment("XDG_STATE_HOME", layout.buildDirectory.dir("test-state").get().asFile.absolutePath)
     systemProperty("java.awt.headless", "true")
+    // Settings must not fetch the contributors from GitHub during tests.
+    systemProperty("amnezia.awg.offline", "true")
 }
 
 // ---------------------------------------------------------------------------

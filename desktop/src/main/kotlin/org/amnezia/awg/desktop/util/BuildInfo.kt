@@ -15,6 +15,16 @@ object BuildInfo {
         } ?: "dev"
     }
 
+    /** The platform this build runs on, for "AmneziaWG GUI for <platform>": Linux, Windows or macOS. */
+    val platformName: String by lazy {
+        val os = System.getProperty("os.name").orEmpty()
+        when {
+            os.startsWith("Windows") -> "Windows"
+            os.startsWith("Mac") -> "macOS"
+            else -> "Linux"
+        }
+    }
+
     /** The project's repository (the `origin` remote), shown in Settings. */
     const val REPOSITORY_URL = "https://github.com/Qwand05/amneziawg-linux-gui"
 

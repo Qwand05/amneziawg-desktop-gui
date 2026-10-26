@@ -84,7 +84,7 @@ fun main(args: Array<String>) {
     }
     AppLog.i(
         "App",
-        "AmneziaWG for Linux ${BuildInfo.version} starting; Java ${System.getProperty("java.version")}, " +
+        "AmneziaWG GUI for ${BuildInfo.platformName} ${BuildInfo.version} starting; Java ${System.getProperty("java.version")}, " +
             "${System.getProperty("os.name")} ${System.getProperty("os.version")}, " +
             "desktop ${System.getenv("XDG_CURRENT_DESKTOP") ?: "unknown"} (${System.getenv("XDG_SESSION_TYPE") ?: "unknown"})",
     )

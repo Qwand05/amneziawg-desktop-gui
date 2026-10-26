@@ -45,6 +45,7 @@ class ScreensRenderTest {
         for (i in 1..12) File(AppPaths.configDir, "tunnel$i.conf").writeText(SAMPLE)
         // Too many AllowedIPs for a QR code; sorts last so the other screenshots keep their rows.
         File(AppPaths.configDir, "zz-huge.conf").writeText(HUGE)
+        seedContributors()
 
         val app = onEdt { AppState().also { it.start() } }
         waitUntil { onEdt { app.tunnelManager.loaded } }
@@ -108,6 +109,8 @@ class ScreensRenderTest {
         shot("editor")
         onEdt { app.popBackStack(); app.navigate(Screen.Settings) }
         shot("settings", dark = true)
+        // Hovering the first contributor avatar (end of the "Source code" row) shows the name.
+        shot("settings-contributor-hover", clicks = listOf(Click(Offset(866f, 166f), hover = true)))
         onEdt { app.updateThemeColors(ThemeColors(accent = Color(0xFF1E88E5), status = Color(0xFFEF6C00))) }
         shot("settings-custom-colors")
         onEdt { app.updateThemeColors(ThemeColors()) }
@@ -129,9 +132,15 @@ class ScreensRenderTest {
     }
 
     /** A mouse click as the window would deliver it: move, press, release. */
-    private class Click(val at: Offset, val secondary: Boolean = false, val ctrl: Boolean = false) {
+    private class Click(val at: Offset, val secondary: Boolean = false, val ctrl: Boolean = false, val hover: Boolean = false) {
         fun send(scene: ImageComposeScene, t: Long) {
             val ms = t / 1_000_000
+            if (hover) {
+                scene.sendPointerEvent(PointerEventType.Enter, at, timeMillis = ms)
+                scene.sendPointerEvent(PointerEventType.Move, at, timeMillis = ms + 10)
+                scene.render(t + 20_000_000)
+                return
+            }
             val button = if (secondary) PointerButton.Secondary else PointerButton.Primary
             val modifiers = PointerKeyboardModifiers(isCtrlPressed = ctrl)
             scene.sendPointerEvent(PointerEventType.Move, at, timeMillis = ms, keyboardModifiers = modifiers)
@@ -147,6 +156,31 @@ class ScreensRenderTest {
                 keyboardModifiers = modifiers, button = button,
             )
             scene.render(t + 70_000_000)
+        }
+    }
+
+    /**
+     * Three cached contributors, as Settings would have them after fetching
+     * from GitHub (the tests never go online): two avatars, one without.
+     */
+    private fun seedContributors() {
+        val dir = File(AppPaths.stateDir, "contributors").apply { deleteRecursively(); mkdirs() }
+        File(dir, "contributors.tsv").writeText(
+            "albexk\tAlex Example\thttps://github.com/albexk\n" +
+                "vkamn\t\thttps://github.com/vkamn\n" +
+                "Qwand05\t\thttps://github.com/Qwand05\n"
+        )
+        for ((login, rgb) in listOf("albexk" to 0x1E88E5, "vkamn" to 0x43A047)) {
+            val image = java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB)
+            image.createGraphics().apply {
+                color = java.awt.Color(rgb)
+                fillRect(0, 0, 64, 64)
+                color = java.awt.Color.WHITE
+                fillOval(20, 12, 24, 24)
+                fillOval(10, 40, 44, 36)
+                dispose()
+            }
+            javax.imageio.ImageIO.write(image, "png", File(dir, "$login.img"))
         }
     }
 

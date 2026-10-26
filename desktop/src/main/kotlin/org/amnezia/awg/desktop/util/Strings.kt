@@ -202,7 +202,8 @@ object Strings {
     fun interfaceAlreadyRunning(name: String) = f("interface_already_running", name)
 
     // Settings
-    fun versionTitle(version: String) = f("version_title", version)
+    /** "AmneziaWG GUI for Linux v1.2.2"; the platform name is not translated. */
+    fun versionTitle(platform: String, version: String) = f("version_title", platform, version)
     fun versionSummary(type: String, version: String) = f("version_summary", type, version)
     fun versionSummaryChecking(name: String) = f("version_summary_checking", name)
     fun versionSummaryUnknown(name: String) = f("version_summary_unknown", name)
