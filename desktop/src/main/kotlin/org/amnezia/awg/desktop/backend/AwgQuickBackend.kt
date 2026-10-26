@@ -30,16 +30,22 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     @Volatile
     private var helperInstance: RootHelper? = null
 
-    /** Whether more than one tunnel may be up at a time. */
     @Volatile
-    var multipleTunnels: Boolean = true
+    override var multipleTunnels: Boolean = true
+
+    override val toolsAvailable: Boolean get() = hasTools()
+
+    override val toolsMissingMessage: String get() = Strings.TOOLS_MISSING
+
+    override val typeName: String get() = Strings.TYPE_NAME_KERNEL_MODULE
+
+    override val canRequestPrivileges: Boolean get() = true
 
     /** Whether the privileged helper is already running (no prompt needed). */
     override val hasPrivileges: Boolean
         get() = helperInstance?.isAlive == true
 
-    /** Human readable description of how root is reached, for the settings UI. */
-    val privilegeDescription: String
+    override val privilegeDescription: String
         get() = helperInstance?.takeIf { it.isAlive }?.description ?: Strings.PRIVILEGES_NOT_STARTED
 
     /** Start the privileged helper (prompting for authentication) if needed. */
@@ -96,7 +102,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
     }
 
     /** Version string of the installed amneziawg-tools. */
-    fun getToolsVersion(): String = runUnprivileged("awg", "--version").trim()
+    override fun getToolsVersion(): String = runUnprivileged("awg", "--version").trim()
 
     override fun setState(tunnel: Tunnel, state: Tunnel.State, config: Config?): Tunnel.State {
         var target = state
@@ -197,7 +203,7 @@ class AwgQuickBackend(private val configDir: File) : Backend {
      * Read unprivileged first, which works for members of `adm` or
      * `systemd-journal`; otherwise through the helper if it is running.
      */
-    fun systemJournal(lines: Int = 500): String {
+    override fun systemLog(lines: Int): String {
         val queries = listOf(
             listOf("-k", "--grep", "amneziawg"),
             listOf("-t", "awg-quick", "-t", "awg"),
@@ -224,7 +230,11 @@ class AwgQuickBackend(private val configDir: File) : Backend {
         return entries.toList().takeLast(lines).joinToString("\n")
     }
 
-    fun close() {
+    override fun requestPrivileges() {
+        helper()
+    }
+
+    override fun close() {
         helperInstance?.close()
         helperInstance = null
     }

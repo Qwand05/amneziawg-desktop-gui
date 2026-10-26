@@ -86,7 +86,7 @@ fun SettingsScreen(app: AppState) {
         val scroll = rememberScrollState()
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
-                val module = Strings.TYPE_NAME_KERNEL_MODULE
+                val module = app.backend.typeName
                 ActionRow(
                     Strings.versionTitle(BuildInfo.version),
                     moduleVersion?.fold({ Strings.versionSummary(module, it) }, { Strings.versionSummaryUnknown(module) })

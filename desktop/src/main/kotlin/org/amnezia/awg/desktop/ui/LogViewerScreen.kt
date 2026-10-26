@@ -6,6 +6,7 @@ package org.amnezia.awg.desktop.ui
 
 import androidx.compose.foundation.layout.Box
 import org.amnezia.awg.desktop.util.AppLog
+import org.amnezia.awg.desktop.util.AppPaths
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.PrimaryTabRow
@@ -62,7 +63,7 @@ fun LogViewerScreen(app: AppState) {
         if (tab != 1) return@LaunchedEffect
         journal = null
         journal = try {
-            withContext(Dispatchers.IO) { app.backend.systemJournal() }.lines().filter { it.isNotBlank() }
+            withContext(Dispatchers.IO) { app.backend.systemLog() }.lines().filter { it.isNotBlank() }
         } catch (e: Throwable) {
             listOf(ErrorMessages[e])
         }
@@ -110,14 +111,14 @@ fun LogViewerScreen(app: AppState) {
                 )
                 PrimaryTabRow(selectedTabIndex = tab) {
                     Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(Strings.LOG_TAB_APP) })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(Strings.LOG_TAB_SYSTEM) })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(if (AppPaths.isWindows) Strings.LOG_TAB_CLIENT else Strings.LOG_TAB_SYSTEM) })
                 }
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(
-                if (tab == 0) Strings.logFileHint(AppLog.file.absolutePath) else Strings.SYSTEM_JOURNAL_HINT,
+                if (tab == 0) Strings.logFileHint(AppLog.file.absolutePath) else if (AppPaths.isWindows) Strings.CLIENT_LOG_HINT else Strings.SYSTEM_JOURNAL_HINT,
                 Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -126,7 +127,7 @@ fun LogViewerScreen(app: AppState) {
                 when {
                     lines == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     lines.isEmpty() -> Text(
-                        if (tab == 0) Strings.LOG_EMPTY else Strings.SYSTEM_JOURNAL_EMPTY,
+                        if (tab == 0) Strings.LOG_EMPTY else if (AppPaths.isWindows) Strings.CLIENT_LOG_EMPTY else Strings.SYSTEM_JOURNAL_EMPTY,
                         Modifier.align(Alignment.Center),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

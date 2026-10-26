@@ -177,11 +177,13 @@ val packageTarGz by tasks.registering(Tar::class) {
  * by hand: the application jars with Compose's Windows natives and a
  * launcher script that uses the Java 21 installed on the machine, or a
  * runtime/ folder bundled from a JRE zip given as -PwindowsJre=<zip>
- * (e.g. a Temurin 21 Windows x64 JRE). The GUI runs on Windows, but the
- * backend is Linux-only (awg-quick, polkit), so tunnels cannot be switched
- * there yet.
+ * (e.g. a Temurin 21 Windows x64 JRE). Tunnels are run by AmneziaWG for
+ * Windows (WindowsBackend): an installed one, or one bundled into
+ * amneziawg/ from -PwindowsClient=<folder with amneziawg.exe and awg.exe>,
+ * e.g. amneziawg-windows-client/amd64 after its build.bat.
  */
 val windowsJreZip: File? = (findProperty("windowsJre") as String?)?.let { file(it) }
+val windowsClientDir: File? = (findProperty("windowsClient") as String?)?.let { file(it) }
 
 // The runtime classpath with the Windows natives instead of the Linux ones.
 val windowsRuntimeClasspath: Configuration by configurations.creating {
@@ -203,7 +205,7 @@ dependencies {
 val windowsPortableDir = binariesDir.map { it.dir("windows/amnezia-awg-$appVersion-windows-x64") }
 
 val assembleWindowsPortable by tasks.registering(Sync::class) {
-    description = "Assembles the portable Windows folder (GUI only); -PwindowsJre=<zip> bundles a runtime."
+    description = "Assembles the portable Windows folder; -PwindowsJre=<zip> bundles a runtime, -PwindowsClient=<dir> the AmneziaWG client."
     group = "compose desktop"
     dependsOn(tasks.jar)
     into(windowsPortableDir)
@@ -219,6 +221,12 @@ val assembleWindowsPortable by tasks.registering(Sync::class) {
                 eachFile { path = path.substringAfter('/') }
                 includeEmptyDirs = false
             }
+        }
+    }
+    if (windowsClientDir != null) {
+        require(File(windowsClientDir, "amneziawg.exe").isFile) { "windowsClient: no amneziawg.exe in $windowsClientDir" }
+        into("amneziawg") {
+            from(windowsClientDir) { include("amneziawg.exe", "awg.exe", "wintun.dll") }
         }
     }
     from(layout.projectDirectory.dir("packaging/windows"))

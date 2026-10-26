@@ -15,7 +15,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import org.amnezia.awg.desktop.backend.AwgQuickBackend
+import org.amnezia.awg.desktop.backend.Backend
 import org.amnezia.awg.desktop.configStore.FileConfigStore
 import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.theme.parseHexColor
@@ -48,12 +48,12 @@ class AppState {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     val prefs: Prefs = Prefs.load()
-    val backend = AwgQuickBackend(AppPaths.configDir).apply {
+    val backend: Backend = Backend.forThisPlatform(AppPaths.configDir).apply {
         multipleTunnels = prefs.getBoolean(Prefs.KEY_MULTIPLE_TUNNELS, false)
     }
 
-    /** Whether tunnels can be switched at all: amneziawg-tools is installed (never on Windows). */
-    val toolsAvailable: Boolean = AwgQuickBackend.hasTools()
+    /** Whether tunnels can be switched at all: amneziawg-tools (Linux) or the AmneziaWG client (Windows) is installed. */
+    val toolsAvailable: Boolean = backend.toolsAvailable
     val tunnelManager = TunnelManager(FileConfigStore(AppPaths.configDir), backend, prefs) {
         AppLog.e("TunnelManager", ErrorMessages[it], it)
         showSnackbar(ErrorMessages[it])

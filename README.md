@@ -103,7 +103,7 @@ Build the packages; each lands in its own folder under `desktop/build/compose/bi
 | `./gradlew :desktop:packageDeb` | `deb/amnezia-awg_<version>_amd64.deb` | Debian, Ubuntu. |
 | `./gradlew :desktop:packageRpm` | `rpm/amnezia-awg-<version>-1.x86_64.rpm` | Fedora, openSUSE…; needs `rpmbuild` on the build machine (`sudo apt install rpm`). |
 | `./gradlew :desktop:packageTarGz` | `tar/amnezia-awg-<version>-linux-x64.tar.gz` | Portable: extract anywhere and run `bin/AmneziaWG`. Still needs amneziawg-tools and polkit on the system. |
-| `./gradlew :desktop:packageWindowsPortable` | `windows/amnezia-awg-<version>-windows-x64.zip` (and the unzipped folder next to it) | Portable, GUI only; see below. Add `-PwindowsJre=<Temurin 21 Windows x64 JRE zip>` to bundle a runtime. |
+| `./gradlew :desktop:packageWindowsPortable` | `windows/amnezia-awg-<version>-windows-x64.zip` (and the unzipped folder next to it) | Portable; see below. Add `-PwindowsJre=<Temurin 21 Windows x64 JRE zip>` to bundle a runtime and `-PwindowsClient=<folder>` to bundle the AmneziaWG client. |
 | `./gradlew :desktop:packageAll` | all of the above | |
 
 The project still includes the Android modules, so Gradle needs an Android SDK to configure the
@@ -121,17 +121,34 @@ The portable tar.gz runs from wherever it is extracted (`bin/AmneziaWG`), with t
 the folder afterwards. The RPM's launcher entry lacks the translated names and keywords that the
 `.deb` gets (only the `.deb` is patched after jpackage).
 
-**Windows (portable, GUI only).** jpackage can't cross-build, so `packageWindowsPortable`
-assembles the folder by hand: the application jars with Compose's Windows natives and
-`AmneziaWG.bat`, which starts the app without a console window (`--hidden` and `--toggle` work).
-The launcher uses a `runtime\` folder when one is bundled (`-PwindowsJre=<zip>` at build time, or
-unpack a Windows x64 JRE there yourself), otherwise `JAVA_HOME`, otherwise `javaw.exe` from the
-`PATH`; Java 21 or newer is required. The app runs on Windows: tunnel list, editor, import and
-export, QR codes, settings, languages and the log viewer, with data under `%APPDATA%\amnezia-awg`.
-What it can't do is connect a tunnel: the backend drives `awg-quick` through polkit, which only
-exists on Linux, so the switches are disabled there. A Windows backend on top of the official
-AmneziaWG Windows client would be needed for that. The build is assembled on Linux and hasn't been
-run on Windows here.
+**Windows (portable).** jpackage can't cross-build, so `packageWindowsPortable` assembles the
+folder by hand: the application jars with Compose's Windows natives and `AmneziaWG.bat`, which
+starts the app without a console window (`--hidden` and `--toggle` work). The launcher uses a
+`runtime\` folder when one is bundled (`-PwindowsJre=<zip>` at build time, or unpack a Windows x64
+JRE there yourself), otherwise `JAVA_HOME`, otherwise `javaw.exe` from the `PATH`; Java 21 or newer
+is required. Data lives under `%APPDATA%\amnezia-awg`.
+
+On Windows, tunnels are run by the official
+[AmneziaWG for Windows](https://github.com/amnezia-vpn/amneziawg-windows-client) client, the same way
+it runs its own (`desktop/src/main/kotlin/.../backend/WindowsBackend.kt`):
+
+- **Where the client is found:** an `amneziawg\` folder next to `AmneziaWG.bat` (bundle one you built
+  with its `build.bat` using `-PwindowsClient=amneziawg-windows-client/amd64`), then
+  `C:\Program Files\AmneziaWG\` from its installer, then the `PATH`. Without it the switches are
+  disabled and the rest of the app still works.
+- **Connecting** writes the config to `%APPDATA%\amnezia-awg\<name>.conf` and runs
+  `amneziawg.exe /installtunnelservice <file>`; **disconnecting** runs
+  `amneziawg.exe /uninstalltunnelservice <name>`. Both need administrator rights: if the app was
+  started with *Run as administrator* they run directly, otherwise Windows asks through UAC each time.
+- **Running tunnels** are the active services named *AmneziaWG Tunnel: &lt;name&gt;* (`sc query`, no
+  rights needed), so tunnels started from the official client's own window show up too.
+- **Live statistics** (`awg.exe show <name> dump`) and the **client log** (`amneziawg.exe /dumplog`,
+  the second tab of the log viewer) need the app to run as administrator.
+- **Tunnel services start with Windows,** so a tunnel that is up at shutdown comes back after a
+  reboot even without this app.
+
+This backend was written against the client's source and has unit tests for its parsing and
+quoting, but it hasn't been run on Windows here.
 
 The package bundles its own trimmed Java runtime, so it doesn't need a JDK installed. That runtime
 only contains the Java modules listed in `desktop/build.gradle.kts`. If you add a dependency and

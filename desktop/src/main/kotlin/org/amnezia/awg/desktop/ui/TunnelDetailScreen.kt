@@ -112,15 +112,23 @@ fun TunnelDetailScreen(app: AppState, tunnel: ObservableTunnel, showBack: Boolea
                 tunnel.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 InterfaceCard(tunnel, cfg.getInterface(), onCopied)
                 if (tunnel.state == Tunnel.State.UP && !app.backend.hasPrivileges) {
-                    OutlinedButton(onClick = {
-                        app.scope.launch {
-                            try {
-                                withContext(Dispatchers.IO) { app.backend.helper() }
-                            } catch (e: Throwable) {
-                                app.showSnackbar(ErrorMessages[e])
+                    if (app.backend.canRequestPrivileges) {
+                        OutlinedButton(onClick = {
+                            app.scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { app.backend.requestPrivileges() }
+                                } catch (e: Throwable) {
+                                    app.showSnackbar(ErrorMessages[e])
+                                }
                             }
-                        }
-                    }) { Text(Strings.SHOW_STATISTICS) }
+                        }) { Text(Strings.SHOW_STATISTICS) }
+                    } else {
+                        Text(
+                            Strings.STATISTICS_NEED_ADMIN_WINDOWS,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 cfg.peers.forEach { PeerCard(tunnel, it, onCopied) }
             }

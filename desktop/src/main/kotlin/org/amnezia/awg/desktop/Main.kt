@@ -145,7 +145,7 @@ fun main(args: Array<String>) {
         LaunchedEffect(Unit) {
             app.start()
             if (!app.toolsAvailable)
-                app.showSnackbar(Strings.TOOLS_MISSING)
+                app.showSnackbar(app.backend.toolsMissingMessage)
             // Shortcut requests wait for the tunnel list; a failure shows the window with the error.
             snapshotFlow { app.tunnelManager.loaded }.first { it }
             for (name in toggleRequests) app.toggleTunnelNamed(name, onFailure = showWindow)
