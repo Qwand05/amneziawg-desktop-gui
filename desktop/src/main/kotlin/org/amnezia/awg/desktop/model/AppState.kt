@@ -45,6 +45,11 @@ sealed class Screen {
  * singleton plus `MainActivity`'s back stack.
  */
 class AppState {
+    companion object {
+        /** The tunnel list's width in the two-pane layout until the user drags it, in dp. */
+        const val DEFAULT_LIST_PANE_WIDTH = 360f
+    }
+
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     val prefs: Prefs = Prefs.load()
@@ -101,6 +106,21 @@ class AppState {
 
     /** Whether a system tray icon is shown; set by `Main.kt`. */
     var trayAvailable: Boolean by mutableStateOf(false)
+
+    /** Width of the tunnel list in the two-pane layout, in dp, as the user dragged it. */
+    var listPaneWidth: Float by mutableStateOf(
+        prefs.getString(Prefs.KEY_LIST_PANE_WIDTH, null)?.toFloatOrNull() ?: DEFAULT_LIST_PANE_WIDTH
+    )
+        private set
+
+    /** Changes the width while dragging; [saveListPaneWidth] stores it when the drag ends. */
+    fun updateListPaneWidth(value: Float) {
+        listPaneWidth = value
+    }
+
+    fun saveListPaneWidth() {
+        prefs.putString(Prefs.KEY_LIST_PANE_WIDTH, listPaneWidth.takeIf { it != DEFAULT_LIST_PANE_WIDTH }?.toString())
+    }
 
     var closeToTray: Boolean by mutableStateOf(prefs.getBoolean(Prefs.KEY_CLOSE_TO_TRAY, true))
         private set

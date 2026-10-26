@@ -117,6 +117,7 @@ class Prefs private constructor(private val file: File) {
         const val KEY_RESTORE_ON_BOOT = "restore_on_boot"
         const val KEY_LAST_USED_TUNNEL = "last_used_tunnel"
         const val KEY_RECENT_TUNNELS = "recent_tunnels"
+        const val KEY_LIST_PANE_WIDTH = "list_pane_width"
         const val KEY_RUNNING_TUNNELS = "enabled_configs"
         const val KEY_SORT_ORDER = "sort_order"
 

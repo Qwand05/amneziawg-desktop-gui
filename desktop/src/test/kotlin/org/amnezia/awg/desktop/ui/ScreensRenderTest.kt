@@ -23,6 +23,7 @@ import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.util.AppPaths
 import org.amnezia.awg.desktop.util.I18n
 import org.jetbrains.skia.EncodedImageFormat
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -84,6 +85,14 @@ class ScreensRenderTest {
         }
 
         shot("list")
+        // Drag the divider between the list (360 px wide) and the details 120 px to the right...
+        shot("list-resized", clicks = listOf(Click(Offset(364f, 400f), to = Offset(484f, 400f))))
+        val dragged = onEdt { app.listPaneWidth }
+        assertTrue("list width after the drag: $dragged", dragged in 476f..484f)
+        assertTrue(AppPaths.settingsFile.readText().contains("list_pane_width"))
+        // ...and double-click it back to the default.
+        shot("list-reset", clicks = listOf(Click(Offset(484f, 400f)), Click(Offset(484f, 400f))))
+        assertEquals(AppState.DEFAULT_LIST_PANE_WIDTH, onEdt { app.listPaneWidth })
         // The add button of the list pane: the camera entry is disabled when
         // no camera is present (as on CI and this test's sandbox).
         shot("add-menu", clicks = listOf(Click(Offset(316f, 676f))))
@@ -132,7 +141,14 @@ class ScreensRenderTest {
     }
 
     /** A mouse click as the window would deliver it: move, press, release. */
-    private class Click(val at: Offset, val secondary: Boolean = false, val ctrl: Boolean = false, val hover: Boolean = false) {
+    /** A click at [at]; with [to], a drag from [at] to [to] instead; with [hover], only moving there. */
+    private class Click(
+        val at: Offset,
+        val secondary: Boolean = false,
+        val ctrl: Boolean = false,
+        val hover: Boolean = false,
+        val to: Offset? = null,
+    ) {
         fun send(scene: ImageComposeScene, t: Long) {
             val ms = t / 1_000_000
             if (hover) {
@@ -151,8 +167,20 @@ class ScreensRenderTest {
                 keyboardModifiers = modifiers, button = button,
             )
             scene.render(t + 30_000_000)
+            var end = at
+            if (to != null) {
+                // Ten steps with the button held, as a real drag delivers them.
+                for (step in 1..10) {
+                    end = at + (to - at) * (step / 10f)
+                    scene.sendPointerEvent(
+                        PointerEventType.Move, end, timeMillis = ms + 30 + step * 3L,
+                        buttons = PointerButtons(isPrimaryPressed = true), keyboardModifiers = modifiers,
+                    )
+                    scene.render(t + 30_000_000 + step * 3_000_000L)
+                }
+            }
             scene.sendPointerEvent(
-                PointerEventType.Release, at, timeMillis = ms + 60,
+                PointerEventType.Release, end, timeMillis = ms + 80,
                 keyboardModifiers = modifiers, button = button,
             )
             scene.render(t + 70_000_000)

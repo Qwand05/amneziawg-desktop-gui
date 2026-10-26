@@ -13,7 +13,9 @@ with the AmneziaWG tools should work too.
 ## Features
 
 - **Tunnel list** with on/off switches and "Connected" / "Connecting…" status based on the latest
-  handshake. Select several tunnels to delete them.
+  handshake. Select several tunnels to delete them. In a wide window the list and the selected
+  tunnel's details sit side by side; drag the line between them to resize the list (double-click it
+  to reset). The width is remembered.
 - **Tunnel details**: addresses, DNS, peers, the AmneziaWG obfuscation parameters, and live traffic
   and handshake statistics. Click any value to copy it.
 - **Editor** for every `[Interface]` and `[Peer]` field, including all AmneziaWG obfuscation
@@ -122,10 +124,10 @@ build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment var
 Install the `.deb` with:
 
 ```bash
-sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.2_amd64.deb
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.3_amd64.deb
 ```
 
-or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.2-1.x86_64.rpm`.
+or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.3-1.x86_64.rpm`.
 The portable tar.gz runs from wherever it is extracted (`bin/AmneziaWG`), with the same
 `--hidden` and `--toggle` flags; desktop shortcuts point at that extracted launcher, so don't move
 the folder afterwards. The RPM's launcher entry lacks the translated names and keywords that the

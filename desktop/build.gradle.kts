@@ -19,7 +19,7 @@ plugins {
  * Version of the desktop GUI. It is independent of the Android app and of
  * AmneziaWG itself, and is used for the .deb package and the Settings screen.
  */
-val appVersion = "1.2.2"
+val appVersion = "1.3"
 version = appVersion
 
 // Makes the version available at runtime as a classpath resource.

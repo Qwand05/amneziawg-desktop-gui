@@ -16,7 +16,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -58,6 +57,7 @@ import org.amnezia.awg.desktop.model.AppState
 import org.amnezia.awg.desktop.model.RecentTunnels
 import org.amnezia.awg.desktop.model.Screen
 import org.amnezia.awg.desktop.theme.AmneziaContent
+import org.amnezia.awg.desktop.ui.DraggableVerticalDivider
 import org.amnezia.awg.desktop.ui.LogViewerScreen
 import org.amnezia.awg.desktop.ui.SettingsScreen
 import org.amnezia.awg.desktop.ui.TunnelDetailScreen
@@ -70,6 +70,10 @@ import java.awt.Toolkit
 
 /** Width from which the list and the selected tunnel are shown side by side (Android's sw600dp layout). */
 private val TWO_PANE_MIN_WIDTH = 760.dp
+
+/** How narrow dragging the divider can make the tunnel list, and the details next to it. */
+private val MIN_LIST_PANE_WIDTH = 260.dp
+private val MIN_DETAIL_PANE_WIDTH = 360.dp
 
 /**
  * Command line flags:
@@ -292,11 +296,24 @@ fun App(app: AppState) {
                 val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH
                 val isTunnelScreen = screen is Screen.TunnelList || screen is Screen.TunnelDetail || screen is Screen.TunnelEditor
                 if (twoPane && isTunnelScreen) {
+                    // The divider resizes the list; the details keep at least their minimum.
+                    val maxListWidth = (maxWidth - MIN_DETAIL_PANE_WIDTH).coerceAtLeast(MIN_LIST_PANE_WIDTH)
+                    val listWidth = app.listPaneWidth.dp.coerceIn(MIN_LIST_PANE_WIDTH, maxListWidth)
                     Row(Modifier.fillMaxSize()) {
-                        Box(Modifier.width(360.dp).fillMaxHeight()) {
+                        Box(Modifier.width(listWidth).fillMaxHeight()) {
                             TunnelListScreen(app, app.selectedTunnel)
                         }
-                        VerticalDivider()
+                        DraggableVerticalDivider(
+                            onDrag = { delta ->
+                                val current = app.listPaneWidth.dp.coerceIn(MIN_LIST_PANE_WIDTH, maxListWidth)
+                                app.updateListPaneWidth((current + delta).coerceIn(MIN_LIST_PANE_WIDTH, maxListWidth).value)
+                            },
+                            onDragStopped = { app.saveListPaneWidth() },
+                            onReset = {
+                                app.updateListPaneWidth(AppState.DEFAULT_LIST_PANE_WIDTH)
+                                app.saveListPaneWidth()
+                            },
+                        )
                         Box(Modifier.weight(1f).fillMaxHeight()) {
                             if (screen is Screen.TunnelList) {
                                 Text(

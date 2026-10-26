@@ -4,6 +4,27 @@
  */
 package org.amnezia.awg.desktop.ui
 
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import java.awt.Cursor
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.clickable
@@ -167,6 +188,42 @@ fun ActionRow(title: String, summary: String, enabled: Boolean = true, onClick: 
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
         Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * A divider between two side-by-side panes that can be dragged sideways to
+ * resize them ([onDrag] gets the distance); [onDragStopped] when let go,
+ * [onReset] on a double click. The grab area is wider than the line, which
+ * thickens in the accent color while hovered or dragged.
+ */
+@Composable
+fun DraggableVerticalDivider(onDrag: (Dp) -> Unit, onDragStopped: () -> Unit, onReset: () -> Unit) {
+    val density = LocalDensity.current
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragStopped by rememberUpdatedState(onDragStopped)
+    val currentOnReset by rememberUpdatedState(onReset)
+    val interaction = remember { MutableInteractionSource() }
+    val active = interaction.collectIsHoveredAsState().value || interaction.collectIsDraggedAsState().value
+    Box(
+        Modifier
+            .width(9.dp)
+            .fillMaxHeight()
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
+            .draggable(
+                rememberDraggableState { pixels -> currentOnDrag(with(density) { pixels.toDp() }) },
+                Orientation.Horizontal,
+                interactionSource = interaction,
+                onDragStopped = { currentOnDragStopped() },
+            )
+            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { currentOnReset() }) },
+        contentAlignment = Alignment.Center,
+    ) {
+        VerticalDivider(
+            thickness = if (active) 3.dp else DividerDefaults.Thickness,
+            color = if (active) MaterialTheme.colorScheme.primary else DividerDefaults.color,
+        )
     }
 }
 
