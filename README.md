@@ -126,10 +126,10 @@ build. Set `sdk.dir` in `local.properties` or the `ANDROID_HOME` environment var
 Install the `.deb` with:
 
 ```bash
-sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.3_amd64.deb
+sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.3.1_amd64.deb
 ```
 
-or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.3-1.x86_64.rpm`.
+or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.3.1-1.x86_64.rpm`.
 The `.deb` built on Ubuntu 24.04 is meant to install on Debian 12 and 13 and older Ubuntu releases too:
 - each of Ubuntu's renamed `…t64` dependencies (`libasound2t64`, `libglib2.0-0t64`, `libpng16-16t64`) has
   the old package name as an alternative;
