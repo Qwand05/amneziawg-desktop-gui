@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.amnezia.awg.desktop.backend.Backend
+import org.amnezia.awg.desktop.backend.Connectivity
 import org.amnezia.awg.desktop.configStore.FileConfigStore
 import org.amnezia.awg.desktop.theme.ThemeColors
 import org.amnezia.awg.desktop.theme.parseHexColor
@@ -122,6 +123,24 @@ class AppState {
         prefs.putString(Prefs.KEY_LIST_PANE_WIDTH, listPaneWidth.takeIf { it != DEFAULT_LIST_PANE_WIDTH }?.toString())
     }
 
+    /** "Disconnect tunnels while offline" (see [OfflineWatcher]). */
+    var disconnectOffline: Boolean by mutableStateOf(prefs.getBoolean(Prefs.KEY_DISCONNECT_OFFLINE, false))
+        private set
+
+    fun updateDisconnectOffline(value: Boolean) {
+        disconnectOffline = value
+        prefs.putBoolean(Prefs.KEY_DISCONNECT_OFFLINE, value)
+        AppLog.i("Settings", "Disconnect tunnels while offline: ${if (value) "on" else "off"}")
+    }
+
+    private val connectivity = Connectivity.forThisPlatform()
+    private val offlineWatcher = OfflineWatcher(
+        tunnelManager, backend, prefs, connectivity,
+        isEnabled = { disconnectOffline },
+        onMessage = ::showSnackbar,
+        onError = { AppLog.e("OfflineWatcher", ErrorMessages[it], it); showSnackbar(ErrorMessages[it]) },
+    )
+
     var closeToTray: Boolean by mutableStateOf(prefs.getBoolean(Prefs.KEY_CLOSE_TO_TRAY, true))
         private set
 
@@ -191,11 +210,13 @@ class AppState {
 
     fun start() {
         tunnelManager.start()
+        offlineWatcher.start(scope)
     }
 
     fun close() {
+        scope.cancel()
+        connectivity.close()
         tunnelManager.close()
         backend.close()
-        scope.cancel()
     }
 }

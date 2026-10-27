@@ -103,20 +103,94 @@ compose.desktop {
     }
 }
 
+/**
+ * Ubuntu's OpenJDK links the system libjpeg (libjpeg.so.8, from
+ * libjpeg-turbo8), which Debian does not have: it has libjpeg.so.62. The
+ * packages would then not install there, or not read JPEG images (avatars,
+ * QR code images). So the libjpeg the runtime links against is copied into
+ * its lib/, where the JDK's libraries look first (rpath $ORIGIN), with its
+ * copyright; jpackage then no longer lists it as a dependency. A JDK with
+ * its own libjpeg built in (such as Temurin) links none, and nothing is copied.
+ */
+fun bundleSystemLibjpeg(runtime: File) {
+    fun output(vararg command: String): String? = runCatching {
+        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+        val text = process.inputStream.bufferedReader().readText()
+        text.takeIf { process.waitFor() == 0 }
+    }.getOrNull()
+    val lib = File(runtime, "lib")
+    val javajpeg = File(lib, "libjavajpeg.so").takeIf { it.isFile } ?: return
+    val linked = Regex("""^\s*(libjpeg\.so\.\d+)\s*=>\s*(/\S+)""", RegexOption.MULTILINE)
+        .find(output("ldd", javajpeg.path).orEmpty()) ?: return
+    val (soname, path) = linked.destructured
+    if (File(path).canonicalPath.startsWith(lib.canonicalPath + File.separator)) return
+    File(path).canonicalFile.copyTo(File(lib, soname), overwrite = true)
+    val owner = output("dpkg-query", "-S", path)?.substringBefore(':')?.trim()
+    val copyright = owner?.let { File("/usr/share/doc/$it/copyright") }?.takeIf { it.isFile }
+    copyright?.copyTo(File(runtime, "legal/$owner/copyright"), overwrite = true)
+    logger.lifecycle("Bundled $path as runtime/lib/$soname${if (copyright != null) " with its copyright" else ""}")
+}
+
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask>().configureEach {
+    doLast { bundleSystemLibjpeg(destinationDir.get().asFile) }
+}
+
 // The launcher entry (name, translated generic name and keywords, window
 // class) replaces jpackage's generated one. jpackage would take it from a
 // --resource-dir, but the Compose plugin always passes its own (empty) one
 // last, so the finished .deb is patched instead: unpack, swap the .desktop
-// file (keeping jpackage's Exec and Icon paths), fix md5sums, repack.
+// file (keeping jpackage's Exec and Icon paths), fix md5sums, repack. The
+// same pass makes the package installable beyond the Ubuntu release it was
+// built on (see patchDebControl and patchDebScripts).
 val launcherEntry = layout.projectDirectory.file("packaging/linux/AmneziaWG.desktop")
 
-fun replaceLauncherEntry(deb: File, template: File, workDir: File) {
+/**
+ * jpackage names the dependencies after the packages of the build host.
+ * Ubuntu 24.04 renamed some for the 64-bit time_t transition
+ * (libasound2t64, libglib2.0-0t64…); Debian 12 and older Ubuntu releases
+ * only have the old names, with the same libraries. Each "t64" package gets
+ * its old name as an alternative.
+ */
+fun patchDebControl(control: File) {
+    control.writeText(control.readLines().joinToString("\n", postfix = "\n") { line ->
+        if (!line.startsWith("Depends:")) return@joinToString line
+        "Depends: " + line.removePrefix("Depends:").split(',').map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ") {
+            if (it.endsWith("t64") && ' ' !in it) "$it | ${it.removeSuffix("t64")}" else it
+        }
+    })
+}
+
+/**
+ * jpackage's postinst and prerm register the launcher entry with
+ * `xdg-desktop-menu`, which fails ("No writable system menu directory
+ * found") on systems without /usr/share/desktop-directories, and with it
+ * the whole installation (the scripts run with `set -e`). The entry is then
+ * copied to (removed from) /usr/share/applications directly instead.
+ */
+fun patchDebScripts(debian: File) {
+    val command = Regex("""^xdg-desktop-menu (install|uninstall) (/\S+/([^/\s]+\.desktop))[ \t]*$""", RegexOption.MULTILINE)
+    for (name in listOf("postinst", "prerm")) {
+        val script = File(debian, name)
+        val text = script.readText()
+        check(command.containsMatchIn(text)) { "jpackage's $name no longer calls xdg-desktop-menu as expected" }
+        script.writeText(command.replace(text) { match ->
+            val (action, path, file) = match.destructured
+            val fallback = if (action == "install") "install -D -m 644 $path /usr/share/applications/$file"
+            else "rm -f /usr/share/applications/$file"
+            "xdg-desktop-menu $action $path || $fallback"
+        })
+    }
+}
+
+fun patchDeb(deb: File, template: File, workDir: File) {
     fun run(vararg command: String) {
         val process = ProcessBuilder(*command).inheritIO().start()
         check(process.waitFor() == 0) { "${command.joinToString(" ")} failed" }
     }
     val root = File(workDir, "deb-root").apply { deleteRecursively() }
     run("dpkg-deb", "-R", deb.path, root.path)
+    patchDebControl(File(root, "DEBIAN/control"))
+    patchDebScripts(File(root, "DEBIAN"))
     val generated = root.walk().single { it.isFile && it.extension == "desktop" && "/opt/" in it.path }
     fun field(name: String) = generated.readLines().first { it.startsWith("$name=") }.substringAfter('=')
     generated.writeText(
@@ -143,7 +217,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
         inputs.file(launcherEntry)
         doLast {
             destinationDir.get().asFile.walk().filter { it.extension == "deb" }.forEach { deb ->
-                replaceLauncherEntry(deb, launcherEntry.asFile, temporaryDir)
+                patchDeb(deb, launcherEntry.asFile, temporaryDir)
             }
         }
     }

@@ -282,7 +282,7 @@ class WindowsBackend(private val configDir: File) : Backend {
          * uses by default (1251), which turned their messages into garbage.
          * `chcp` reports it; its text is translated, the number is not.
          */
-        private val consoleCharset: Charset by lazy {
+        internal val consoleCharset: Charset by lazy {
             try {
                 val process = ProcessBuilder("cmd.exe", "/c", "chcp").redirectErrorStream(true).start()
                 val output = process.inputStream.readBytes().toString(StandardCharsets.ISO_8859_1)
@@ -311,7 +311,7 @@ class WindowsBackend(private val configDir: File) : Backend {
             return candidates.firstOrNull { it.isFile }
         }
 
-        private fun run(vararg command: String): String {
+        internal fun run(vararg command: String): String {
             val process = ProcessBuilder(*command).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(consoleCharset).use { it.readText() }
             if (!process.waitFor(30, TimeUnit.SECONDS)) {

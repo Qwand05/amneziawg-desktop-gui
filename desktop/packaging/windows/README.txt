@@ -1,5 +1,5 @@
-AmneziaWG for Linux - portable Windows build
-============================================
+AmneziaWG desktop GUI - portable Windows build
+==============================================
 
 Run AmneziaWG.exe. Nothing is installed; the folder holds the application
 (lib\) and this launcher. Settings and tunnel configurations are kept in
@@ -38,6 +38,13 @@ Importing: the + button takes .conf files and archives of them (.zip, .7z,
 Tunnel services start automatically with Windows: a tunnel that is up
 when you shut down comes back after a reboot, even without this app.
 Disconnect it first if you don't want that.
+
+Disconnect tunnels while offline (Settings, off by default): when no
+network adapter other than a tunnel's has a default route for five
+seconds, the app takes its running tunnels down, and brings the same ones
+back once the connection has been back for five seconds. It checks with
+PowerShell (Get-NetRoute) whenever the adapters change. Tunnels started
+from the official client's own window are left alone.
 
 Options: AmneziaWG.exe --hidden starts in the tray;
 AmneziaWG.exe --toggle <tunnel> connects or disconnects a tunnel.

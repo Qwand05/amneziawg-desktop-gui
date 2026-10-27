@@ -115,12 +115,16 @@ class Prefs private constructor(private val file: File) {
         const val KEY_LANGUAGE = "language"
         const val KEY_STATUS_COLOR = "status_color"
         const val KEY_RESTORE_ON_BOOT = "restore_on_boot"
+        const val KEY_DISCONNECT_OFFLINE = "disconnect_offline"
+
+        /** Tunnels taken down while offline, to bring back when the connection returns. */
+        const val KEY_OFFLINE_TUNNELS = "offline_tunnels"
         const val KEY_LAST_USED_TUNNEL = "last_used_tunnel"
         const val KEY_RECENT_TUNNELS = "recent_tunnels"
         const val KEY_LIST_PANE_WIDTH = "list_pane_width"
         const val KEY_RUNNING_TUNNELS = "enabled_configs"
         const val KEY_SORT_ORDER = "sort_order"
 
-        fun load(): Prefs = Prefs(AppPaths.settingsFile)
+        fun load(file: File = AppPaths.settingsFile): Prefs = Prefs(file)
     }
 }

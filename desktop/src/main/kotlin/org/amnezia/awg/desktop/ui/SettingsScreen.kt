@@ -144,6 +144,11 @@ fun SettingsScreen(app: AppState) {
                     prefs.putBoolean(Prefs.KEY_RESTORE_ON_BOOT, it)
                 }
                 SwitchRow(
+                    Strings.DISCONNECT_OFFLINE_TITLE,
+                    if (app.disconnectOffline) Strings.DISCONNECT_OFFLINE_SUMMARY_ON else Strings.DISCONNECT_OFFLINE_SUMMARY_OFF,
+                    app.disconnectOffline,
+                ) { app.updateDisconnectOffline(it) }
+                SwitchRow(
                     Strings.MULTIPLE_TUNNELS_TITLE,
                     if (multipleTunnels) Strings.MULTIPLE_TUNNELS_SUMMARY_ON else Strings.MULTIPLE_TUNNELS_SUMMARY_OFF,
                     multipleTunnels,

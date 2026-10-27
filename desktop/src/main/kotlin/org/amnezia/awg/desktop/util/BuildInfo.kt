@@ -26,7 +26,7 @@ object BuildInfo {
     }
 
     /** The project's repository (the `origin` remote), shown in Settings. */
-    const val REPOSITORY_URL = "https://github.com/Qwand05/amneziawg-linux-gui"
+    const val REPOSITORY_URL = "https://github.com/Qwand05/amneziawg-desktop-gui"
 
     /** The project this one is a fork of, credited in Settings as "Based on". */
     const val UPSTREAM_REPOSITORY_URL = "https://github.com/amnezia-vpn/amneziawg-android"

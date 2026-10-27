@@ -109,7 +109,7 @@ def main():
         order = list(english)
         extra = sorted(k for k in values if k not in english)
         with open(target, "w", encoding="utf-8") as f:
-            f.write(f"# AmneziaWG for Linux: {suffix} strings.\n")
+            f.write(f"# AmneziaWG desktop GUI: {suffix} strings.\n")
             f.write(f"# Partly imported from ui/src/main/res/{res_dir} by desktop/tools/import_android_translations.py.\n")
             for key in order + extra:
                 if key in values:

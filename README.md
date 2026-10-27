@@ -1,4 +1,4 @@
-# AmneziaWG for Linux
+# AmneziaWG desktop GUI
 
 A desktop GUI for [AmneziaWG](https://amnezia.org/learn-more/31_amneziawg) on Linux, built with
 [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/). It is a port of the
@@ -43,6 +43,8 @@ with the AmneziaWG tools should work too.
   second copy.
 - **Settings**:
   - restore tunnels on start;
+  - disconnect tunnels while offline, and reconnect them when the network is back (see
+    [Disconnecting while offline](#disconnecting-while-offline));
   - allow multiple simultaneous tunnels;
   - dark theme;
   - custom accent and status colors;
@@ -128,6 +130,16 @@ sudo apt install ./desktop/build/compose/binaries/main/deb/amnezia-awg_1.3_amd64
 ```
 
 or the `.rpm` with `sudo dnf install ./desktop/build/compose/binaries/main/rpm/amnezia-awg-1.3-1.x86_64.rpm`.
+The `.deb` built on Ubuntu 24.04 is meant to install on Debian 12 and 13 and older Ubuntu releases too:
+- each of Ubuntu's renamed `…t64` dependencies (`libasound2t64`, `libglib2.0-0t64`, `libpng16-16t64`) has
+  the old package name as an alternative;
+- the `libjpeg.so.8` that Ubuntu's JDK links against is bundled in the runtime (`lib/runtime/lib/`, with
+  its copyright in `lib/runtime/legal/`), because Debian only has `libjpeg.so.62`; the tar.gz has it as
+  well;
+- the launcher entry is copied to `/usr/share/applications` directly when `xdg-desktop-menu` fails, as it
+  does on minimal systems without `/usr/share/desktop-directories`.
+
+The build does all of this when it patches the `.deb` (`desktop/build.gradle.kts`).
 The portable tar.gz runs from wherever it is extracted (`bin/AmneziaWG`), with the same
 `--hidden` and `--toggle` flags; desktop shortcuts point at that extracted launcher, so don't move
 the folder afterwards. The RPM's launcher entry lacks the translated names and keywords that the
@@ -166,6 +178,12 @@ it runs its own (`desktop/src/main/kotlin/.../backend/WindowsBackend.kt`):
   statistics* on a tunnel's details does.
 - **Tunnel services start with Windows,** so a tunnel that is up at shutdown comes back after a
   reboot even without this app.
+- **Disconnect tunnels while offline** asks PowerShell (`Get-NetRoute`, `Get-NetIPInterface`) which
+  connected adapters have a default route, leaving out the tunnels' adapters. To keep PowerShell from
+  running every few seconds, it asks again only when the adapters change (as Java's
+  `NetworkInterface` sees them), and at least once a minute. Without those cmdlets, any adapter that
+  is up with a routable address counts. Taking tunnels down and bringing them back up goes through
+  the elevated helper like any switch.
 
 This backend was written against the client's source and has unit tests for its parsing and
 quoting, but it hasn't been run on Windows here.
@@ -243,6 +261,30 @@ from the `.deb` package. You can use the same flag from your own scripts or key 
 
 KDE Plasma trusts the shortcut because it is executable; on GNOME it is marked *Allow Launching*
 when `gio` is available, otherwise right-click the icon and allow it once.
+
+### Disconnecting while offline
+
+With **Settings → Disconnect tunnels while offline** on (it is off by default), the app takes its
+running tunnels down when the computer loses its network connection, and brings the same tunnels
+back up when the connection returns.
+
+- **What counts as offline:** no network interface other than an AmneziaWG tunnel has a default
+  route. The app doesn't test whether the internet can be reached, because a full tunnel would make
+  such a test pass or fail for the wrong reasons. It asks NetworkManager over D-Bus for its overall
+  state (NetworkManager doesn't manage AmneziaWG interfaces), and without NetworkManager it reads
+  `ip route`.
+- **No flapping:** it acts only once the connection has stayed lost, or back, for five seconds, so a
+  short drop such as roaming between Wi-Fi access points changes nothing.
+- **Only the app's tunnels** are switched. Other AmneziaWG interfaces, such as ones started with
+  `awg-quick up`, are never touched, and they don't count as a connection either.
+- **Which tunnels went down is remembered** (in `settings.properties`), so they come back even after
+  the app was restarted. Turning the setting off doesn't forget them: they still come back with the
+  connection.
+- **A tunnel you connect yourself in the meantime** stays. If *Allow multiple simultaneous tunnels*
+  is off, the remembered ones are then not brought back.
+- **Root:** taking a tunnel down needs root like any switch, so if you haven't switched a tunnel yet
+  in this session, polkit asks for your password at that moment.
+- Both events show a message in the window and are recorded in the application log.
 
 ### Live statistics
 
@@ -339,7 +381,7 @@ Inside `desktop/src/main/kotlin/org/amnezia/awg/desktop/`:
 
 | Package | Contents |
 | --- | --- |
-| `backend/` | `awg-quick` backend and the privileged helper client |
+| `backend/` | `awg-quick` and Windows backends, the privileged helper clients, and the network connection check |
 | `model/` | Tunnel state and app state |
 | `viewmodel/` | Editor models |
 | `ui/` | Compose screens |

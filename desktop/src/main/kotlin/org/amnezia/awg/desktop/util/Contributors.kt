@@ -53,7 +53,7 @@ object Contributors {
     /** One "group, login, name, profile URL" line per person, tab separated; the group is "fork" or "upstream". */
     private val listFile: File get() = File(dir, "credits.tsv")
 
-    /** "Qwand05/amneziawg-linux-gui" */
+    /** "Qwand05/amneziawg-desktop-gui" */
     private val repository: String get() = BuildInfo.REPOSITORY_URL.removePrefix("https://github.com/").trimEnd('/')
 
     /** The cached credits; none without a cache. */
